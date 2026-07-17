@@ -1,0 +1,9 @@
+{
+  "name": "chatbot-reforma-tributaria",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chatbot de dúvidas sobre a Reforma Tributária (IBS, CBS, Imposto Seletivo), com backend serverless na Vercel usando a API da OpenAI.",
+  "engines": {
+    "node": ">=18"
+  }
+}
