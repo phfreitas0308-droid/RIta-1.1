@@ -9,9 +9,47 @@ base na EC 132/2023, LC 214/2025 e LC 227/2026.
 - `index.html` — frontend estático (chat), sem nenhuma chave de API exposta.
 - `api/chat.js` — função serverless que recebe a pergunta do navegador e
   chama a API da OpenAI **no servidor**, mantendo sua chave protegida.
-- `lib/kb.js` — base de conhecimento curada (resumo da legislação) e as
-  instruções que orientam a IA a responder só com base nesse conteúdo,
-  citando o artigo/lei correspondente.
+- `lib/kb.js` — resumo curado da legislação (usado como rede de segurança
+  enquanto o índice de busca abaixo não existir).
+- `data/chunks_leis_reforma_tributaria.json` — os textos da EC 132/2023, LC
+  214/2025, LC 227/2026 e do glossário, já divididos em blocos por artigo/
+  parágrafo, cada um com sua referência exata (ex.: `"Art. 32, LC 214/2025"`).
+- `scripts/build_index.js` — script que você roda **uma vez, no seu
+  computador**, para transformar esses blocos em um índice de busca (embeddings).
+- `lib/retrieval.js` — no servidor, a cada pergunta, busca os trechos mais
+  parecidos com a pergunta dentro desse índice e os envia ao modelo, no lugar
+  do resumo fixo — assim a resposta pode citar o artigo exato em vez de um
+  resumo genérico.
+
+## Gerar o índice de busca (RAG) — recomendado, roda uma vez
+
+Sem esse passo, o chatbot continua funcionando normalmente, só que usando o
+resumo fixo de `lib/kb.js` (menos preciso). Para ativar a busca nos textos
+completos das leis:
+
+1. No seu computador, instale o [Node.js](https://nodejs.org) (versão 18 ou mais recente) se ainda não tiver.
+2. Baixe/descompacte esta pasta do projeto no seu computador.
+3. Copie `.env.example` para `.env` e preencha `OPENAI_API_KEY` com sua chave.
+4. Abra um terminal nesta pasta e rode:
+   ```
+   node --env-file=.env scripts/build_index.js
+   ```
+   (se der erro de "unknown option --env-file", seu Node é mais antigo — rode `export OPENAI_API_KEY=sk-...` antes e depois `node scripts/build_index.js`)
+5. O script vai demorar alguns minutos (são ~3.200 blocos) e vai custar poucos
+   centavos de dólar na sua conta OpenAI. Ao final, ele cria os arquivos:
+   - `data/index_ec132.json`
+   - `data/index_lc214.json`
+   - `data/index_lc227.json`
+   - `data/index_glossario.json`
+6. Suba esses 4 arquivos novos para o mesmo repositório do GitHub (mesma pasta
+   `data/`), do mesmo jeito que você já fez com o `index.html` — a Vercel
+   refaz o deploy sozinha.
+7. A partir daí, toda pergunta passa a buscar automaticamente nos textos
+   completos das leis, citando o artigo exato.
+
+Se no futuro sair uma nova lei ou regulamentação, adicione o texto dela ao
+processo de chunking e rode `scripts/build_index.js` de novo para atualizar
+o índice.
 
 ## Publicar na Vercel (grátis)
 
@@ -72,11 +110,11 @@ do CG-IBS), edite `lib/kb.js` — adicione um novo item ao array `KB` com
 
 ## Limitações deste protótipo
 
-- Não há autenticação — qualquer pessoa com o link acessa o chat.
-- A base de conhecimento é um resumo curado, não os textos legais completos
-  na íntegra (para reduzir custo de tokens). Para uma versão mais robusta,
-  considere migrar para uma arquitetura RAG com busca vetorial sobre os
-  textos completos das leis.
+- Não há autenticação real — o "login" na barra lateral é só local, salvo no
+  navegador da pessoa, sem verificação de senha no servidor.
+- O índice de busca (RAG) precisa ser gerado manualmente (passo acima) e
+  atualizado sempre que sair uma nova lei — não é automático ainda.
 - Não há limite de uso por usuário — em produção real, considere adicionar
   um limite de requisições (rate limiting) para controlar custo da API.
-- Sem histórico persistido: a conversa é perdida ao recarregar a página.
+- Histórico de conversas salvo no navegador (localStorage) — some se a pessoa
+  limpar os dados do navegador ou trocar de dispositivo.
