@@ -7,10 +7,28 @@
 //                     (use "gpt-5.6-luna" para reduzir custo, ou o modelo
 //                     mais recente disponível na sua conta — confira em
 //                     https://platform.openai.com/docs/models)
+//
+// Busca (RAG): se os arquivos data/index_*.json existirem (gerados por
+// scripts/build_index.js), cada pergunta busca os trechos de lei mais
+// relevantes por similaridade de embeddings e os injeta no prompt, com a
+// referência exata (ex.: "Art. 32, LC 214/2025"). Se esses arquivos ainda não
+// existirem, cai de volta no resumo fixo curado em lib/kb.js — então nada
+// quebra antes de você rodar a indexação.
 
-const { SYSTEM_INSTRUCTIONS } = require("../lib/kb");
+const { retrieve, hasIndex } = require("../lib/retrieval");
+const { SYSTEM_INSTRUCTIONS: FALLBACK_INSTRUCTIONS } = require("../lib/kb");
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
+
+const BASE_RULES = `Você é RITA, assistente especializada em tirar dúvidas sobre a Reforma Tributária brasileira (EC 132/2023, LC 214/2025 e LC 227/2026).
+
+Regras obrigatórias:
+1. Responda SOMENTE com base no material fornecido em "TRECHOS_LEGAIS_RELEVANTES" abaixo. Se a pergunta não puder ser respondida com esse material, diga claramente que a base atual não cobre esse ponto e sugira consultar o texto oficial da lei.
+2. Responda em português do Brasil, de forma clara, objetiva e sem jargão desnecessário.
+3. Sempre que usar uma informação, cite a referência exata entre parênteses (ex.: "Art. 32, LC 214/2025").
+4. Ao final da resposta, adicione uma linha separada começando com "Fonte:" listando as referências usadas.
+5. Não dê conselho jurídico ou contábil definitivo — apenas explique o que a legislação prevê.
+6. Se a pergunta for sobre algo fora do tema (reforma tributária), diga educadamente que só responde sobre esse assunto.`;
 
 module.exports = async function handler(req, res) {
   // CORS básico (ajuste allowed origin se for embutir em outro domínio)
@@ -51,6 +69,30 @@ module.exports = async function handler(req, res) {
     "Pergunta atual do usuário: " +
     question;
 
+  let instructions;
+  let retrieved = [];
+
+  try {
+    if (hasIndex()) {
+      retrieved = await retrieve(apiKey, question);
+      const trechos = retrieved
+        .map((r) => `[${r.referencia}]\n${r.texto}`)
+        .join("\n\n---\n\n");
+      instructions =
+        BASE_RULES +
+        "\n\nTRECHOS_LEGAIS_RELEVANTES (recuperados por busca semântica para esta pergunta):\n" +
+        (trechos || "(nenhum trecho relevante encontrado)");
+    } else {
+      // Índice ainda não gerado — usa o resumo fixo curado como antes.
+      instructions = FALLBACK_INSTRUCTIONS;
+    }
+  } catch (err) {
+    console.error("Erro na busca (retrieval):", err);
+    // Se a busca falhar (ex.: erro de rede na API de embeddings), não derruba o
+    // chat inteiro — cai para o resumo fixo como rede de segurança.
+    instructions = FALLBACK_INSTRUCTIONS;
+  }
+
   try {
     const openaiRes = await fetch(OPENAI_URL, {
       method: "POST",
@@ -60,7 +102,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model,
-        instructions: SYSTEM_INSTRUCTIONS,
+        instructions,
         input: userInput,
       }),
     });
