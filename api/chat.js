@@ -14,8 +14,15 @@
 // referência exata (ex.: "Art. 32, LC 214/2025"). Se esses arquivos ainda não
 // existirem, cai de volta no resumo fixo curado em lib/kb.js — então nada
 // quebra antes de você rodar a indexação.
+//
+// Raciocínio mais profundo: antes de buscar/responder, uma chamada rápida
+// (lib/analyze.js) classifica a pergunta. Se for ambígua, o chatbot pede
+// esclarecimento em vez de responder. Se for complexa (cruza vários temas),
+// ela é decomposta em sub-perguntas — cada uma gera sua própria busca — e a
+// resposta final usa um nível mais alto de reasoning_effort.
 
-const { retrieve, hasIndex } = require("../lib/retrieval");
+const { retrieve, retrieveMulti, hasIndex } = require("../lib/retrieval");
+const { analyzeQuestion, FALLBACK_ANALYSIS } = require("../lib/analyze");
 const { SYSTEM_INSTRUCTIONS: FALLBACK_INSTRUCTIONS } = require("../lib/kb");
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
@@ -69,17 +76,46 @@ module.exports = async function handler(req, res) {
     "Pergunta atual do usuário: " +
     question;
 
+  // ---------- Etapa 1: analisar a pergunta (ambígua? complexa?) ----------
+  let analysis = FALLBACK_ANALYSIS;
+  try {
+    analysis = await analyzeQuestion(apiKey, question, historyText);
+  } catch (err) {
+    console.error("Erro na análise da pergunta:", err);
+    // segue com o padrão (não ambígua, não complexa) — nunca trava o chat por causa disso
+  }
+
+  // Pergunta ambígua: pede esclarecimento em vez de responder, sem gastar com busca/modelo principal.
+  if (analysis.ambigua && analysis.pergunta_esclarecimento) {
+    return res.status(200).json({
+      answer: analysis.pergunta_esclarecimento,
+      meta: { tipo: "esclarecimento" },
+    });
+  }
+
+  // ---------- Etapa 2: busca (simples ou decomposta em sub-perguntas) ----------
   let instructions;
   let retrieved = [];
+  const reasoningEffort = analysis.complexa ? "high" : "low";
 
   try {
     if (hasIndex()) {
-      retrieved = await retrieve(apiKey, question);
+      if (analysis.complexa && analysis.subperguntas.length > 0) {
+        retrieved = await retrieveMulti(apiKey, [question, ...analysis.subperguntas], 5, 12);
+      } else {
+        retrieved = await retrieve(apiKey, question);
+      }
       const trechos = retrieved
         .map((r) => `[${r.referencia}]\n${r.texto}`)
         .join("\n\n---\n\n");
+      const subperguntasBlock =
+        analysis.complexa && analysis.subperguntas.length > 0
+          ? "\n\nEsta pergunta foi identificada como complexa e decomposta nas seguintes sub-perguntas para orientar sua análise:\n" +
+            analysis.subperguntas.map((s) => `- ${s}`).join("\n")
+          : "";
       instructions =
         BASE_RULES +
+        subperguntasBlock +
         "\n\nTRECHOS_LEGAIS_RELEVANTES (recuperados por busca semântica para esta pergunta):\n" +
         (trechos || "(nenhum trecho relevante encontrado)");
     } else {
@@ -93,6 +129,7 @@ module.exports = async function handler(req, res) {
     instructions = FALLBACK_INSTRUCTIONS;
   }
 
+  // ---------- Etapa 3: resposta principal, com reasoning_effort conforme a complexidade ----------
   try {
     const openaiRes = await fetch(OPENAI_URL, {
       method: "POST",
@@ -104,6 +141,7 @@ module.exports = async function handler(req, res) {
         model,
         instructions,
         input: userInput,
+        reasoning: { effort: reasoningEffort },
       }),
     });
 
@@ -117,7 +155,16 @@ module.exports = async function handler(req, res) {
     }
 
     const answer = extractText(data);
-    return res.status(200).json({ answer });
+    return res.status(200).json({
+      answer,
+      meta: {
+        tipo: "resposta",
+        complexa: analysis.complexa,
+        subperguntas: analysis.subperguntas,
+        reasoning_effort: reasoningEffort,
+        trechos_usados: retrieved.map((r) => r.referencia),
+      },
+    });
   } catch (err) {
     console.error("Erro ao chamar a OpenAI:", err);
     return res.status(500).json({ error: "Falha ao consultar o modelo de IA. Tente novamente." });
