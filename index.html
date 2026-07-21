@@ -316,6 +316,32 @@
   }
   .inputbar button:hover { background: var(--accent-dark); }
   .inputbar button:disabled { background: #E3C3AE; cursor: default; }
+
+  .limit-note {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 10px 14px;
+    background: var(--accent-soft);
+    border: 1px solid #F0C9A6;
+    border-radius: 9px;
+    font-size: 12.5px;
+    color: #6B4321;
+    line-height: 1.4;
+  }
+  .limit-note a { color: var(--accent-dark); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  .question-counter {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto 4px;
+    padding: 0 2px;
+  }
 </style>
 </head>
 <body>
@@ -348,6 +374,10 @@
     <div class="chat" id="chat" style="display:none;"></div>
   </div>
 
+  <div class="question-counter" id="questionCounter"></div>
+  <div class="limit-note" id="limitNote">
+    Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.
+  </div>
   <div class="inputbar">
     <div class="inputbar-inner">
       <input id="input" type="text" placeholder="Digite sua pergunta sobre a reforma tributária..." />
@@ -367,6 +397,7 @@ const SUGESTOES = [
 const STORAGE_KEY = "rita_conversations";
 const ACTIVE_KEY = "rita_active_id";
 const USER_KEY = "rita_user";
+const MAX_PERGUNTAS_POR_SESSAO = 4; // limite de perguntas por conversa (também aplicado no servidor, em api/chat.js)
 
 let conversations = loadConversations();
 let activeId = localStorage.getItem(ACTIVE_KEY);
@@ -390,6 +421,9 @@ const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const loginAreaEl = document.getElementById('loginArea');
+const limitNoteEl = document.getElementById('limitNote');
+const limitNewChatLink = document.getElementById('limitNewChatLink');
+const questionCounterEl = document.getElementById('questionCounter');
 
 SUGESTOES.forEach(q => {
   const b = document.createElement('button');
@@ -406,7 +440,13 @@ newChatBtn.addEventListener('click', () => {
   persist();
   renderSidebar();
   renderActiveConversation();
+  updateLimitState();
   inputEl.focus();
+});
+
+limitNewChatLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  newChatBtn.click();
 });
 
 function createConversationObject() {
@@ -433,6 +473,27 @@ function setEmptyState(isEmpty) {
   contentEl.classList.toggle('is-empty', isEmpty);
 }
 
+function countPerguntas(conv) {
+  return conv ? conv.messages.filter(m => m.role === 'user').length : 0;
+}
+
+function updateLimitState() {
+  const conv = getActive();
+  const count = countPerguntas(conv);
+  const atingiuLimite = count >= MAX_PERGUNTAS_POR_SESSAO;
+
+  inputEl.disabled = atingiuLimite;
+  sendBtn.disabled = atingiuLimite;
+  inputEl.placeholder = atingiuLimite
+    ? 'Limite de perguntas atingido nesta conversa.'
+    : 'Digite sua pergunta sobre a reforma tributária...';
+  limitNoteEl.style.display = atingiuLimite ? 'flex' : 'none';
+
+  questionCounterEl.textContent = count > 0
+    ? `Pergunta ${Math.min(count, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} nesta conversa`
+    : '';
+}
+
 function renderSidebar() {
   convListEl.innerHTML = '';
   conversations.forEach(c => {
@@ -457,6 +518,7 @@ function renderActiveConversation() {
     greetingEl.style.display = '';
     chatEl.style.display = 'none';
     setEmptyState(true);
+    updateLimitState();
     return;
   }
   greetingEl.style.display = 'none';
@@ -471,6 +533,7 @@ function renderActiveConversation() {
     }
   });
   chatEl.scrollTop = chatEl.scrollHeight;
+  updateLimitState();
 }
 
 function addMessageEl(role, text, fonteText, cls) {
@@ -497,6 +560,13 @@ function splitFonte(fullText) {
 async function sendMessage() {
   const question = inputEl.value.trim();
   if (!question) return;
+
+  const convCheck = getActive();
+  if (countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
+    updateLimitState();
+    return;
+  }
+
   inputEl.value = '';
   sendBtn.disabled = true;
 
@@ -512,6 +582,7 @@ async function sendMessage() {
   persist();
   renderSidebar();
   addMessageEl('user', question);
+  updateLimitState();
 
   const loadingEl = addMessageEl('bot', 'Consultando a base de conhecimento…', null, 'loading');
 
@@ -538,8 +609,8 @@ async function sendMessage() {
     loadingEl.remove();
     addMessageEl('bot', 'Não consegui conectar ao servidor. Tente novamente em instantes.', null, 'error');
   } finally {
-    sendBtn.disabled = false;
-    inputEl.focus();
+    updateLimitState();
+    if (!inputEl.disabled) inputEl.focus();
   }
 }
 
