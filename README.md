@@ -20,6 +20,13 @@ base na EC 132/2023, LC 214/2025 e LC 227/2026.
   parecidos com a pergunta dentro desse índice e os envia ao modelo, no lugar
   do resumo fixo — assim a resposta pode citar o artigo exato em vez de um
   resumo genérico.
+- `lib/analyze.js` — antes de responder, uma chamada rápida classifica a
+  pergunta: se for **ambígua** (depende de algo que só o usuário sabe, ex.:
+  o regime tributário da empresa dele), o chatbot pergunta antes de responder;
+  se for **complexa** (cruza vários temas), ela é decomposta em sub-perguntas,
+  cada uma busca seu próprio conjunto de trechos, e a resposta final usa mais
+  "esforço de raciocínio" (`reasoning_effort: high`) — perguntas simples usam
+  `low`, para manter a resposta rápida e barata.
 
 ## Gerar o índice de busca (RAG) — recomendado, roda uma vez
 
