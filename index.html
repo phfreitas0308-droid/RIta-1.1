@@ -81,14 +81,13 @@
     gap: 2px;
   }
   .conv-item {
-    padding: 9px 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 9px 6px 9px 10px;
     border-radius: 7px;
     font-size: 13px;
     color: #D8D1C8;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     border-left: 3px solid transparent;
   }
   .conv-item:hover { background: var(--ink-soft); }
@@ -97,6 +96,33 @@
     color: #FFFFFF;
     border-left-color: var(--accent);
   }
+  .conv-item-label {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .conv-delete-btn {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: #7A6F63;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .12s, background .12s, color .12s;
+  }
+  .conv-delete-btn svg { width: 14px; height: 14px; }
+  .conv-item:hover .conv-delete-btn,
+  .conv-item:focus-within .conv-delete-btn { opacity: 1; }
+  .conv-delete-btn:hover { background: rgba(232,93,37,0.25); color: #FF8A5C; }
 
   .sidebar-footer {
     border-top: 1px solid var(--ink-border);
@@ -499,16 +525,56 @@ function renderSidebar() {
   conversations.forEach(c => {
     const item = document.createElement('div');
     item.className = 'conv-item' + (c.id === activeId ? ' active' : '');
-    item.textContent = c.title;
     item.title = c.title;
-    item.onclick = () => {
+
+    const label = document.createElement('span');
+    label.className = 'conv-item-label';
+    label.textContent = c.title;
+    label.onclick = () => {
       activeId = c.id;
       persist();
       renderSidebar();
       renderActiveConversation();
     };
+    item.appendChild(label);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'conv-delete-btn';
+    delBtn.type = 'button';
+    delBtn.title = 'Excluir conversa';
+    delBtn.setAttribute('aria-label', 'Excluir conversa');
+    delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      deleteConversation(c.id);
+    };
+    item.appendChild(delBtn);
+
     convListEl.appendChild(item);
   });
+}
+
+function deleteConversation(id) {
+  const conv = conversations.find(c => c.id === id);
+  const ok = window.confirm(`Excluir a conversa "${conv ? conv.title : ''}"? Essa ação não pode ser desfeita.`);
+  if (!ok) return;
+
+  conversations = conversations.filter(c => c.id !== id);
+
+  if (activeId === id) {
+    if (conversations.length > 0) {
+      activeId = conversations[0].id;
+    } else {
+      const c = createConversationObject();
+      conversations.push(c);
+      activeId = c.id;
+    }
+  }
+
+  persist();
+  renderSidebar();
+  renderActiveConversation();
+  updateLimitState();
 }
 
 function renderActiveConversation() {
