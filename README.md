@@ -121,7 +121,23 @@ do CG-IBS), edite `lib/kb.js` — adicione um novo item ao array `KB` com
   navegador da pessoa, sem verificação de senha no servidor.
 - O índice de busca (RAG) precisa ser gerado manualmente (passo acima) e
   atualizado sempre que sair uma nova lei — não é automático ainda.
-- Não há limite de uso por usuário — em produção real, considere adicionar
-  um limite de requisições (rate limiting) para controlar custo da API.
 - Histórico de conversas salvo no navegador (localStorage) — some se a pessoa
   limpar os dados do navegador ou trocar de dispositivo.
+
+## Limite de perguntas por sessão
+
+Cada conversa aceita no máximo **4 perguntas**. Ao atingir o limite, o campo de
+pergunta é bloqueado e aparece um aviso convidando a pessoa a iniciar uma nova
+conversa (o histórico da conversa anterior continua salvo na barra lateral).
+
+- **Onde é controlado**: no servidor, em `api/chat.js` (constante
+  `MAX_PERGUNTAS_POR_SESSAO`, configurável também pela variável de ambiente
+  `MAX_PERGUNTAS_POR_SESSAO` na Vercel) — é a barreira que realmente impede
+  gastos além do previsto, mesmo que alguém chame a API diretamente sem passar
+  pelo site. E também no frontend, em `index.html` (mesma constante, no
+  `<script>`), só para mostrar o aviso e desabilitar o campo antes de gastar
+  uma chamada à API à toa.
+- **Para mudar o número**: se só ajustar a variável de ambiente na Vercel, o
+  servidor passa a aceitar o novo limite, mas o frontend continua mostrando o
+  aviso com "4" — edite também a constante `MAX_PERGUNTAS_POR_SESSAO` dentro do
+  `<script>` do `index.html` para os dois ficarem sincronizados.
