@@ -63,6 +63,23 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "Campo 'question' é obrigatório." });
   }
 
+  // ---------- Limite de perguntas por sessão/conversa ----------
+  // Protege contra custo descontrolado de API: cada conversa (definida pelo
+  // frontend) pode fazer no máximo MAX_PERGUNTAS_POR_SESSAO perguntas.
+  // Verificado no servidor (não só no frontend) para não depender só do
+  // JavaScript do navegador — alguém não pode simplesmente ignorar o limite
+  // chamando a API diretamente.
+  const MAX_PERGUNTAS_POR_SESSAO = Number(process.env.MAX_PERGUNTAS_POR_SESSAO || 4);
+  const perguntasAnteriores = Array.isArray(history)
+    ? history.filter((h) => h && h.role === "user").length
+    : 0;
+  if (perguntasAnteriores >= MAX_PERGUNTAS_POR_SESSAO) {
+    return res.status(403).json({
+      error: `Você atingiu o limite de ${MAX_PERGUNTAS_POR_SESSAO} perguntas nesta conversa. Inicie uma nova conversa para continuar.`,
+      meta: { tipo: "limite_atingido" },
+    });
+  }
+
   const model = process.env.OPENAI_MODEL || "gpt-5.6-terra";
 
   // Monta o histórico recente da conversa (até 6 últimas mensagens) para dar contexto.
@@ -77,6 +94,24 @@ module.exports = async function handler(req, res) {
     (historyText ? "Histórico recente da conversa:\n" + historyText + "\n\n" : "") +
     "Pergunta atual do usuário: " +
     question;
+
+  // Query usada para a BUSCA (RAG) — diferente do userInput acima, que vai para
+  // o modelo principal. Quando o usuário responde a um pedido de esclarecimento
+  // com uma frase curta (ex.: pergunta "explique o art. 193", RITA responde
+  // perguntando "de qual lei?", usuário responde só "da LC 214"), a mensagem
+  // atual sozinha ("da LC 214") não tem quase nenhum conteúdo para a busca por
+  // embeddings encontrar o trecho certo — o número do artigo só existe na
+  // pergunta anterior. Por isso, a busca combina a pergunta atual com a última
+  // pergunta do usuário no histórico (quando forem diferentes), garantindo que
+  // sinais como "artigo 193" não se percam nesse tipo de troca.
+  const previousUserQuestions = Array.isArray(history)
+    ? history.filter((h) => h && h.role === "user").map((h) => h.text)
+    : [];
+  const lastUserQuestion = previousUserQuestions[previousUserQuestions.length - 1];
+  const searchQuery =
+    lastUserQuestion && lastUserQuestion.trim() !== question.trim()
+      ? `${lastUserQuestion}\n${question}`
+      : question;
 
   // ---------- Etapa 1: analisar a pergunta (ambígua? complexa?) ----------
   let analysis = FALLBACK_ANALYSIS;
@@ -103,9 +138,9 @@ module.exports = async function handler(req, res) {
   try {
     if (hasIndex()) {
       if (analysis.complexa && analysis.subperguntas.length > 0) {
-        retrieved = await retrieveMulti(apiKey, [question, ...analysis.subperguntas], 8, 20);
+        retrieved = await retrieveMulti(apiKey, [searchQuery, ...analysis.subperguntas], 8, 20);
       } else {
-        retrieved = await retrieve(apiKey, question);
+        retrieved = await retrieve(apiKey, searchQuery);
       }
       const trechos = retrieved
         .map((r) => `[${r.referencia}]\n${r.texto}`)
