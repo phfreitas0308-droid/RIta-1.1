@@ -24,20 +24,23 @@
 const { retrieve, retrieveMulti, hasIndex } = require("../lib/retrieval");
 const { analyzeQuestion, FALLBACK_ANALYSIS } = require("../lib/analyze");
 const { SYSTEM_INSTRUCTIONS: FALLBACK_INSTRUCTIONS } = require("../lib/kb");
+const { searchWeb } = require("../lib/google_search");
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
+const WEB_SEARCH_RESULTS = Number(process.env.WEB_SEARCH_RESULTS || 4);
 
 const BASE_RULES = `Você é RITA, assistente especializada em tirar dúvidas sobre a Reforma Tributária brasileira (EC 132/2023, LC 214/2025 e LC 227/2026).
 
 Regras obrigatórias:
-1. Use os TRECHOS_LEGAIS_RELEVANTES abaixo como sua fonte de verdade. Para perguntas que cruzam mais de um tema (ex.: split payment + crédito presumido + marketplace), é esperado e desejado que você COMBINE e INTERPRETE vários trechos diferentes para construir uma resposta — isso não é proibido, é o objetivo. Deixe claro no texto o que é citação literal da lei e o que é interpretação/síntese sua a partir dela (ex.: "Combinando o art. X, que trata de Y, com o art. Z, que trata de W, é possível entender que...").
+1. Use os TRECHOS_LEGAIS_RELEVANTES abaixo como sua fonte de verdade para qualquer citação de lei/artigo. Para perguntas que cruzam mais de um tema (ex.: split payment + crédito presumido + marketplace), é esperado e desejado que você COMBINE e INTERPRETE vários trechos diferentes para construir uma resposta — isso não é proibido, é o objetivo. Deixe claro no texto o que é citação literal da lei e o que é interpretação/síntese sua a partir dela (ex.: "Combinando o art. X, que trata de Y, com o art. Z, que trata de W, é possível entender que...").
 2. Quando a lei usar uma definição genérica (ex.: "arranjos de pagamento", "prestadores de serviço de pagamento eletrônico") que tecnicamente cobre um caso concreto não citado nominalmente (ex.: Pix, boleto, cartão), você pode aplicar essa definição ao caso e explicar o raciocínio — não é preciso que a lei mencione o termo exato para você responder.
-3. Só diga que a base não cobre a pergunta se, mesmo combinando e interpretando os trechos fornecidos, não houver nenhum conteúdo minimamente relacionado. Não recuse apenas porque não existe uma única frase que responda tudo de forma literal e direta.
-4. Responda em português do Brasil, de forma clara, objetiva e sem jargão desnecessário.
-5. Sempre que usar uma informação, cite a referência exata entre parênteses (ex.: "Art. 32, LC 214/2025").
-6. Ao final da resposta, adicione uma linha separada começando com "Fonte:" listando as referências usadas.
-7. Não dê conselho jurídico ou contábil definitivo — deixe claro quando estiver interpretando/inferindo, em vez de citando a lei literalmente.
-8. Se a pergunta for sobre algo fora do tema (reforma tributária), diga educadamente que só responde sobre esse assunto.`;
+3. Só diga que a base não cobre a pergunta se, mesmo combinando e interpretando os trechos fornecidos E os RESULTADOS_DA_WEB (quando houver), não houver nenhum conteúdo minimamente relacionado. Não recuse apenas porque não existe uma única frase que responda tudo de forma literal e direta.
+4. RESULTADOS_DA_WEB (se presentes) são resultados de busca no Google — contexto complementar sobre notícias, discussões práticas ou aplicações reais do tema, e NÃO são texto legal. Nunca cite um resultado da web como se fosse um artigo de lei, nunca escreva algo como "(Art. X, LC 214/2025)" baseado só em um resultado da web. Use-os apenas para enriquecer a resposta com contexto atual/prático, e deixe claro quando a informação vier da web em vez da lei (ex.: "Segundo reportagens recentes, ..."). Se algum resultado da web contradisser o texto da lei, prevaleça sempre o texto legal.
+5. Responda em português do Brasil, de forma clara, objetiva e sem jargão desnecessário.
+6. Sempre que usar uma informação legal, cite a referência exata entre parênteses (ex.: "Art. 32, LC 214/2025"). Sempre que usar uma informação de um RESULTADO_DA_WEB, mencione a fonte (ex.: "segundo [título/veículo]").
+7. Ao final da resposta, adicione uma linha "Fonte:" listando as referências legais usadas e, se tiver usado algum resultado da web, uma linha separada "Fonte adicional (web):" listando título e link.
+8. Não dê conselho jurídico ou contábil definitivo — deixe claro quando estiver interpretando/inferindo, em vez de citando a lei literalmente.
+9. Se a pergunta for sobre algo fora do tema (reforma tributária), diga educadamente que só responde sobre esse assunto.`;
 
 module.exports = async function handler(req, res) {
   // CORS básico (ajuste allowed origin se for embutir em outro domínio)
@@ -166,6 +169,31 @@ module.exports = async function handler(req, res) {
     instructions = FALLBACK_INSTRUCTIONS;
   }
 
+  // ---------- Etapa 2.5: busca ao vivo no Google (contexto complementar) ----------
+  // Além do texto das leis, cada pergunta também busca no Google (mesma API/CSE
+  // usada pela atualização automática) para trazer contexto atual/prático sobre
+  // a Reforma Tributária — notícias, discussões, aplicações reais — que não
+  // está e nunca vai estar no texto da lei em si. Opcional: só roda se
+  // GOOGLE_API_KEY e GOOGLE_CSE_ID estiverem configurados; se a busca falhar
+  // por qualquer motivo, a resposta segue normalmente só com os trechos legais.
+  const googleKey = process.env.GOOGLE_API_KEY;
+  const cseId = process.env.GOOGLE_CSE_ID;
+  let webResults = [];
+  if (googleKey && cseId) {
+    try {
+      webResults = await searchWeb(googleKey, cseId, searchQuery, { num: WEB_SEARCH_RESULTS });
+      if (webResults.length > 0) {
+        const webBlock = webResults
+          .map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\nLink: ${r.link}`)
+          .join("\n\n");
+        instructions += "\n\nRESULTADOS_DA_WEB (busca no Google, contexto complementar — NÃO é texto legal):\n" + webBlock;
+      }
+    } catch (err) {
+      console.error("Erro na busca ao vivo no Google:", err);
+      // segue sem contexto da web — nunca trava o chat por causa disso
+    }
+  }
+
   // ---------- Etapa 3: resposta principal, com reasoning_effort conforme a complexidade ----------
   try {
     const openaiRes = await fetch(OPENAI_URL, {
@@ -200,6 +228,7 @@ module.exports = async function handler(req, res) {
         subperguntas: analysis.subperguntas,
         reasoning_effort: reasoningEffort,
         trechos_usados: retrieved.map((r) => r.referencia),
+        fontes_web: webResults.map((r) => ({ title: r.title, link: r.link })),
       },
     });
   } catch (err) {
