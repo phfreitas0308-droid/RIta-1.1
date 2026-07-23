@@ -136,7 +136,7 @@ module.exports = async function handler(req, res) {
   const reasoningEffort = analysis.complexa ? "high" : "low";
 
   try {
-    if (hasIndex()) {
+    if (await hasIndex()) {
       if (analysis.complexa && analysis.subperguntas.length > 0) {
         retrieved = await retrieveMulti(apiKey, [searchQuery, ...analysis.subperguntas], 8, 20);
       } else {
