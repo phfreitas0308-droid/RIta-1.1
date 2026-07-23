@@ -16,6 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 const { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } = require("../lib/embedding_config");
+const { embedBatch } = require("../lib/embeddings_client");
 
 const BATCH_SIZE = 100;
 
@@ -31,27 +32,6 @@ const SOURCE_TO_FILE = {
 
 function round4(n) {
   return Math.round(n * 10000) / 10000;
-}
-
-async function embedBatch(apiKey, texts) {
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      input: texts,
-      dimensions: EMBEDDING_DIMENSIONS,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error("Erro da API de embeddings: " + JSON.stringify(data));
-  }
-  // A API preserva a ordem de entrada em data.data[i].embedding
-  return data.data.map((d) => d.embedding);
 }
 
 async function main() {
