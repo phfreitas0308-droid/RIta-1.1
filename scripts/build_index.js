@@ -11,7 +11,8 @@
 // grava os resultados em data/index_*.json — um arquivo por fonte, para cada um
 // ficar bem abaixo do limite de 25MB do upload pela interface do GitHub.
 //
-// Custo aproximado: poucos centavos de dólar para o volume atual (~3.200 blocos).
+// Custo aproximado: poucos centavos de dólar para o volume atual (~4.500 blocos,
+// incluindo os documentos técnicos da DeRE adicionados depois das leis).
 
 const fs = require("fs");
 const path = require("path");
@@ -28,6 +29,13 @@ const SOURCE_TO_FILE = {
   "LC 214/2025": "index_lc214.json",
   "LC 227/2026": "index_lc227.json",
   "Glossário da Reforma Tributária": "index_glossario.json",
+  "DeRE - Mensagens de Erro do Sistema": "index_dere_mensagens_erro.json",
+  "DeRE - Receita Integra (Documentação Técnica)": "index_dere_receita_integra.json",
+  "DeRE - Histórico de Versões": "index_dere_historico_versoes.json",
+  "DeRE - Anexo II – Regras de Validação": "index_dere_anexo2_regras.json",
+  "DeRE - Anexo I – Tabelas": "index_dere_anexo1_tabelas.json",
+  "DeRE - Leiautes": "index_dere_leiautes.json",
+  "DeRE - Manual do Usuário (MOD)": "index_dere_manual_usuario.json",
 };
 
 function round4(n) {
