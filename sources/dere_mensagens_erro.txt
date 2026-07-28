@@ -1,0 +1,252 @@
+DERE - Mensagens de Erro do Sistema
+
+
+
+1-Mensagens de erros de validação de lote, erros gerais, erros internos e de infraestrutura
+
+Código da
+                                                        Texto da mensagem
+mensagem
+            O XML enviado no body está inválido. {0}
+
+            {0} pode ser
+  MS0001
+            . Verifique a estrutura do xml informado.
+            . O encoding informado na tag xml do arquivo está invalido. Valor válido : 'utf-8' (sem espaços).
+            . O body da requisição contém um XML inválido. Favor revisá-lo e tentar novamente.
+            Não foi possível tratar o conteúdo xml corretamente, pois a conexão foi interrompida. Tente novamente
+  MS0002
+            mais tarde.
+            Erro na validação da cadeia de certificados digitais. O certificado digital utilizado não pôde ser validado
+  MS0003
+            em relação à sua autoridade certificadora.
+            A raiz do certificado digital do signatário ou do solicitante da informação deverá pertencer à Autoridade
+  MS0004
+            Certificadora Raiz Brasileira (ICP-Brasil).
+  MS0005    O certificado digital do signatário ou do solicitante da informação encontra-se revogado.
+  MS0006    O certificado digital do signatário ou do solicitante da informação encontra-se expirado.
+            O certificado digital do signatário ou do solicitante da informação não é válido. Somente serão aceitos os
+  MS0007
+            certificados do tipo e-Aplicação, e-CNPJ, e-PJ, e-CPF ou e-PF.
+            Certificado inválido para assinatura digital. O certificado digital utilizado para assinatura deve possuir os
+  MS0008
+            atributos 'digitalSignature' e 'nonRepudiation' em sua chave 'Key Usage' (uso da chave).
+            Versão de leiaute incompatível. A versão do leiaute informada no namespace do arquivo não
+  MS0009    corresponde à versão atualmente configurada no sistema. Atualize o arquivo para a versão válida e tente
+            novamente.
+            Erro na estrutura do XML. {0}
+  MS0010
+            {0} será substituído por :
+               • The element is invalid. The value xxx is invalid according to its datatype 'xxx'
+            Já existe um lote idêntico (com mesmo número de identificação e hashcode) recebido na base do
+  MS0011
+            sistema. Número do protocolo do lote: {0}
+            Operação não permitida. Para pessoa jurídica, deve ser utilizado certificado digital: da matriz do CNPJ
+            declarante, ou cujo CPF pertença ao representante legal do CNPJ da matriz do declarante, ou que
+  MS0013
+            pertença a um procurador do CNPJ da matriz do declarante devidamente habilitado no sistema de
+            Procurações Eletrônicas da Receita Federal.
+  MS0014    Conteúdo do lote inválido (nulo, vazio ou apenas caracteres em branco).
+            Operação não permitida. O CNPJ do titular obtido na autenticação da API {0} difere do CNPJ do
+  MS0015
+            declarante informado no lote.
+            Ocorreu um erro inesperado no processamento. Por favor, tente novamente. Caso o problema persista,
+            favor entrar em contato através do 'Fale Conosco' da DERE [link a definir]. Ao entrar nessa página, clique
+  MS0099
+            em 'Indisponibilidade do Sistema', informe o problema e o número [{0}] e anexe o XML do evento que foi
+            objeto deste erro.
+
+
+2 Mensagens de erros de integração com outros sistemas
+
+Código da
+                                                        Texto da mensagem
+mensagem
+            Ocorreu uma falha no acesso ao sistema CNPJ. Por favor, tente novamente. ({0} - Identificador do erro:
+  MS0100
+            {1} )
+  MS0101    CNPJ {0} não encontrado no cadastro do sistema CNPJ.
+            Ocorreu uma falha no acesso ao sistema de Procurações Eletrônicas. Por favor, tente novamente. ({0} -
+  MS0102
+            Identificador do erro: {1} )
+3. Mensagens de erros de validação nas APIs de consulta
+
+
+Código da
+                                                    Texto da mensagem
+mensagem
+ MS0200 Parâmetro {0} obrigatório não informado.
+ MS0201 O número do protocolo de lote informado não é válido.
+ MS0202 O tipo de ambiente informado no número do protocolo não é válido.
+          O tipo de ambiente informado no número do protocolo deve ser igual ao tipo de ambiente no qual a
+ MS0203
+          consulta foi realizada.
+          O ano/mês informado no número do protocolo é diferente do ano/mês da data de recepção do lote
+ MS0204
+          encontrado na base de dados.
+          O lote com o número de protocolo '{0}' não existe ou foi transmitido há mais de {1} dias e não se encontra
+ MS0205
+          mais disponível para consulta do resultado do seu processamento.
+          Consulta não permitida. O CNPJ do titular obtido na autenticação da API {0} difere do CNPJ do declarante
+ MS0206
+          informado no lote.
+
+
+
+4. Mensagens de erros de validação dos eventos (erros gerais e regras de negócio)
+
+
+Código da
+                                                      Texto da mensagem
+Mensagem
+            Não são permitidos caracteres especiais nas tags do evento, conforme descrito no manual do
+ MS1001
+            desenvolvedor.
+ MS1002     A assinatura digital do evento não é válida. {0}
+ MS1003     O evento deve ser assinado com um certificado digital.
+            Evento rejeitado, pois já foi transmitido um evento de mesmo tipo e com o mesmo identificador (atributo
+ MS1004
+            [id]).
+            Não é permitido transmitir um evento com indicador de inclusão (tpOper=1), quando existir um evento ativo,
+ MS1005
+            com mesma chave, previamente registrado no sistema.
+            Evento rejeitado, pois já existe um evento no sistema com o mesmo conteúdo (hash). O número do recibo
+ MS1006
+            do evento recebido anteriormente está na tag [nrRecibo].
+            Não é permitido transmitir um evento com indicador de alteração (tpOper=2), quando não existir um evento
+ MS1007
+            ativo, com mesma chave, previamente registrado no sistema.
+            Não é permitido transmitir um evento com indicador de alteração (tpOper=2), quando existir um outro
+ MS1008
+            evento ativo, do mesmo tipo e cuja chave seja idêntica à nova chave.
+            Não é permitido transmitir um evento com indicador de exclusão (tpOper=3), quando não existir um evento
+ MS1009
+            ativo, com mesma chave, previamente registrado no sistema.
+            Nova validade não pode ser a mesma da chave atual do evento. Se for o caso, retirar o campo Nova
+ MS1010
+            Validade.
+            O campo ID do evento não está no formato esperado. Ele deve conter entre 42 caracteres no formato
+            DeRENNNNTXXXXXXXXXXXXXXAAAAMMDDHHMMSSQQQQQ, sendo:
+            'DeRE' 4 posições;
+            NNNN - 4 posições com o código do Evento sendo transmitido (ex: 1001, 1011);
+            T - 1 posição com Tipo de Inscrição do Contribuinte (1 - CNPJ);
+ MS1050
+            XXXXXXXXXXXXXX - 14 posições com o CNPJ do contribuinte (completar com zeros à esquerda);
+            AAAAMMDD - Ano, mês e dia da geração do evento;
+            HHMMSS - Hora, minuto e segundo da geração do evento;
+            QQQQQ - Número sequencial da chave (Incrementar somente quando ocorrer geração de eventos na
+            mesma data/hora).
+ MS1055     No envio de eventos no ambiente de produção, o campo [tpAmb] só pode ser preenchido com o valor 1.
+            No envio de eventos no ambiente de produção restrita, o campo [tpAmb] só pode ser preenchido com o
+ MS1056
+            valor 2.
+            O campo [nrInsc] deve ser preenchido com 8 caracteres.
+ MS1058
+            Se o campo [tpInsc] for igual a 1, o campo [nrInsc] deve ser preenchido com 8 caracteres.
+ MS1061     O CNPJ informado não existe na base de dados do sistema CNPJ.
+            O evento não pode ser recebido, pois o CNPJ do declarante encontra-se baixado no sistema CNPJ no
+ MS1062
+            período de apuração {perApur}.
+            O evento não pode ser recebido, pois o CNPJ do declarante encontra-se com situação nula no sistema
+ MS1063
+            CNPJ.
+            O evento não pode ser recebido, pois no período da apuração {perApur}, o CNPJ do declarante encontra-
+ MS1064
+            se com situação cadastral inapta (situação=4) pelo motivo de Inexistência de Fato (motivo=15).
+ MS1065     Para o regime de Serviços Financeiros, o grupo [servFinac] é de preenchimento obrigatório.
+MS1066 Para o regime de Plano de Assistência à Saúde, o grupo [plAssistSaude] é de preenchimento obrigatório.
+MS1067 Para o regime de Concursos de Prognósticos, o grupo [prognosticos] é de preenchimento obrigatório.
+       Deverá existir na base de dados do sistema evento de cadastro D1001 cujo período de vigência abranja o
+MS1069
+       início do período de validade dos dados.
+       O código descrito no campo [cCta] da conta {cCta} deve ser igual à concatenação dos códigos do campo
+MS1070
+       [cCtaInterna] com o campo [cDbrMista].
+       Não são permitidas duas ou mais contas com o mesmo código [cCta] {cCta} para o mesmo plano de
+MS1071
+       contas.
+       O número de inscrição (CPF/CNPJ) informado no campo [id] não corresponde ao campo [nrInsc] informado
+MS1073
+       no evento.
+MS1074 A conta analítica {cCta} deve ter uma conta pai, ou seja o campo [cCtaSup] deve ser preenchido.
+MS1075 O preenchimento do campo [descCta] é obrigatório se a conta for analítica ([indCta] = "A").
+MS1076 O código de tributo {codTrib} informado para a conta {cCta} não existe na tabela de tributos do sistema.
+       A conta contábil informada em [cCtaRef] para a conta {cCta} não existe no Plano de Contas Referencial
+MS1077 {planoCtaRef}
+       Obs.: Substituir {planoCtaRef} por (1-COSIF, 2-ANS, 3-SUSEP ou 4-SPED).
+MS1078 A data de fim de vigência da conta contábil {cCta} não pode ser menor que a data de início da vigência.
+       A conta {cCta} não foi encontrada no Plano de Contas (PGCC). Verifique o código informado ou cadastre a
+MS1079
+       conta.
+       A conta {cCta} não pode ser utilizada no período {perApur}, pois sua vigência no PGCC não cobre este
+MS1080
+       período.
+       A conta {cCta} foi informada mais de uma vez. Cada conta só pode ser declarada uma única vez por
+MS1081
+       balancete.
+       Para o código de tributação 'Outras' selecionado, é necessário detalhar a operação no campo
+MS1082
+       [espCodTribOut].
+MS1083 A conta pai {cCtaSup} da conta {cCta} deve ser uma conta sintética (campo [indCta] = S).
+       A Data do Rendimento informada [dtRendPeriodico] deve pertencer ao mesmo mês e ano do período de
+MS1084
+       apuração [perApur].
+MS1085 A Data do Rendimento [dtRendPeriodico] não pode ser anterior à Data de Aquisição [dtAquisicao].
+       O Valor do Rendimento Periódico [vRendPeriodico] é obrigatório quando a Data do Rendimento
+MS1086
+       [dtRendPeriodico] é informada.
+       A Data de Liquidação/Resgate informada [dtLiqResg] deve pertencer ao mesmo mês e ano do período de
+MS1087
+       apuração [perApur].
+MS1088 A Data de Liquidação/Resgate [dtLiqResg] não pode ser anterior à Data de Aquisição [dtAquisicao].
+       O Valor de Liquidação/Resgate [vLiqResg] é obrigatório quando a Data de Liquidação/Resgate [dtLiqResg]
+MS1089
+       é informada.
+MS1092 O período de apuração informado deve ser menor que o mês/ano do processamento do evento.
+MS1093 O regime secundário deve ser diferente do regime principal.
+       A data de início da validade deve ser igual ou posterior a {dataInicioDeRE}.
+MS1094
+       Obs: {dataInicioDeRE} é a data de início da DeRE parametrizada no sistema.
+MS1095 A data de fim da validade [fimValid] deve ser igual ou posterior à data de início da validade [iniValid].
+MS1096 O grupo de dados [novaValidade] é de uso exclusivo da operação de Alteração ([tpOper] = [2])
+       O evento não pode ser aceito porque suas datas de validade se sobrepõem às datas do evento de chave
+MS1097
+       {0}. Você deverá ajustar as datas deste evento ou do evento sobreposto a fim de acomodar o novo evento.
+       O grupo de dados [infoContrib] deve ser preenchido quando a operação for de Inclusão ([tpOper] = [1]) ou
+MS1098
+       Alteração ([tpOper] = [2]).
+MS1099 A conta pai {cCtaSup} da conta {cCta} deve ser informada nesse PGCC.
+       A conta {cCta} não pode ter o campo [cCtaSup] informado pois não se trata de conta com [nivelCta] maior
+MS1100
+       que 1.
+       O grupo [servFinac] só pode ser preenchido quando o regime de Serviços Financeiros for informado no
+MS1101
+       regime principal ou secundário.
+MS1102 A conta {cCta} é uma conta sintética, portanto não admite o preenchimento do campo [indTribISS].
+MS1103 A conta {cCta} é uma conta analítica, portanto exige o preenchimento do campo [codTrib].
+       O grupo de dados [infoPGCC] deve ser preenchido quando a operação for de Inclusão ([tpOper] = [1]) ou
+MS1104
+       Alteração ([tpOper] = [2]).
+MS1105 Para evento de exclusão de dados é necessário informar o motivo de exclusão [motExcl] do evento.
+       Para evento de exclusão de dados cujo motivo é determinação judicial ou administrativa é necessário
+MS1106
+       informar o número do processo.
+       O grupo [plAssistSaude] só pode ser preenchido quando o regime de Plano de Assistência à Saúde for
+MS1107
+       informado no regime principal ou secundário.
+       O grupo [prognosticos] só pode ser preenchido quando o regime de Concursos de Prognósticos for
+MS1108
+       informado no regime principal ou secundário.
+MS1109 A conta {cCta} não é analítica, o que impede o preenchimento do campo [codTrib].
+MS1110   A atividade {tpAtividade} não existe na tabela de atividades do Regime Financeiro.
+MS1111   A atividade {tpAtividade} não existe na tabela de atividades do Regime de Planos de Assistência à Saúde.
+MS1112   A atividade {tpAtividade} não existe na tabela de atividades do Regime de Concursos de Prognósticos.
+         A conta {cCta} é uma conta desdobrada ([cDbrMista] maior que 000), portanto o seu campo [cCtaRef] deve
+MS1114
+         ser idêntico ao da conta principal ([cDbrMista] = 000).
+         O campo [codTrib] da conta {cCta} deve possuir exatamente nove dígitos, com valor entre 100000000 e
+MS1115
+         999999999.
+MS1116   A conta {cCta} possui desdobramentos e deve ser classificada como sintética.
+MS1117   A conta desdobrada {cCta} deve ser classificada como analítica.
+
