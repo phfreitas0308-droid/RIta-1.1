@@ -3,9 +3,9 @@
 // (veja api/access-log.js). Não tem senha nem controle de permissão — é só
 // um registro informativo de "quem entrou e quando".
 //
-// Se o Blob Store não estiver configurado (BLOB_READ_WRITE_TOKEN ausente),
-// este endpoint não falha — só não guarda nada (o login continua
-// funcionando normalmente no navegador, sem esse registro no servidor).
+// Se o Blob Store não estiver conectado ao projeto, este endpoint não
+// falha — só não guarda nada (o login continua funcionando normalmente no
+// navegador, sem esse registro no servidor).
 
 const { blobConfigured, appendAccessLog } = require("../lib/blob_store");
 

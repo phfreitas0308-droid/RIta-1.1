@@ -11,7 +11,7 @@ module.exports = async function handler(req, res) {
   if (!blobConfigured()) {
     return res.status(200).json({
       ativo: false,
-      motivo: "Atualização automática não configurada (BLOB_READ_WRITE_TOKEN ausente).",
+      motivo: "Atualização automática não configurada (Blob Store não conectado a este projeto).",
     });
   }
 

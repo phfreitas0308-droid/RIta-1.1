@@ -56,7 +56,7 @@ module.exports = async function handler(req, res) {
 
   if (!blobConfigured()) {
     return res.status(200).send(renderPage(
-      "<h1>Nenhum registro ainda</h1><p class='sub'>O Blob Store não está configurado (BLOB_READ_WRITE_TOKEN ausente) — crie um Blob Store na Vercel e conecte ao projeto para começar a registrar os acessos.</p>"
+      "<h1>Nenhum registro ainda</h1><p class='sub'>O Blob Store não está conectado a este projeto — crie um Blob Store na Vercel (aba Storage) e conecte ao projeto para começar a registrar os acessos.</p>"
     ));
   }
 

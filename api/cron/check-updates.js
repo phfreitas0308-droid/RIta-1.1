@@ -19,7 +19,10 @@
 // Variáveis de ambiente necessárias (veja o README):
 //   GOOGLE_API_KEY, GOOGLE_CSE_ID   - busca no Google
 //   OPENAI_API_KEY                  - já configurada para o chat normal
-//   BLOB_READ_WRITE_TOKEN           - criado automaticamente ao ligar um Blob Store ao projeto
+//   Blob Store conectado ao projeto (aba Storage na Vercel) - a autenticação
+//                                     é automática (OIDC); só em contas mais
+//                                     antigas é que aparece como a variável
+//                                     BLOB_READ_WRITE_TOKEN
 //   CRON_SECRET (opcional, recomendado) - protege este endpoint contra chamadas externas
 
 const { searchForUpdates } = require("../../lib/google_search");
@@ -66,7 +69,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       skipped: true,
       motivo:
-        "BLOB_READ_WRITE_TOKEN não configurado (ou pacote @vercel/blob ausente) — crie um Blob Store na Vercel e conecte ao projeto para ativar a atualização automática.",
+        "Blob Store não conectado a este projeto (ou pacote @vercel/blob ausente) — crie um Blob Store na Vercel e conecte ao projeto para ativar a atualização automática.",
     });
   }
 
