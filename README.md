@@ -213,9 +213,12 @@ em quando o que entrou na base.
    outra, já que ela não pode escrever de volta no seu repositório do GitHub):
    - No painel da Vercel, vá no seu projeto > aba "Storage" > "Create Database" > escolha "Blob".
    - Confirme a criação e conecte esse Blob Store ao projeto do chatbot.
-   - A Vercel injeta a variável `BLOB_READ_WRITE_TOKEN` automaticamente — não
-     precisa copiar nada manualmente para o site publicado (só se for testar
-     localmente com `vercel dev`).
+   - A autenticação é automática (OIDC) — a Vercel injeta sozinha o que for
+     necessário; não precisa copiar nenhum token manualmente para o site
+     publicado. **Importante:** isso exige `@vercel/blob` na versão `2.x`
+     (já é a versão usada no `package.json` deste projeto) — versões antigas
+     do pacote não sabiam usar OIDC e exigiam configurar
+     `BLOB_READ_WRITE_TOKEN` manualmente.
 
 2. **Google Custom Search API** (a busca por novidades):
    - Acesse [console.cloud.google.com](https://console.cloud.google.com), crie um projeto (ou use um existente).
@@ -258,9 +261,9 @@ chat.
 1. Escolha uma senha (só pra você) e configure a variável de ambiente
    `ACCESS_LOG_SECRET` na Vercel (Settings > Environment Variables), com
    redeploy depois. Sem essa variável, a página de consulta fica desativada.
-2. Isso também precisa do Blob Store conectado ao projeto (o mesmo `BLOB_
-   READ_WRITE_TOKEN` usado pela atualização automática — veja a seção acima).
-   Sem o Blob configurado, o login continua funcionando normalmente, só que
+2. Isso também precisa do Blob Store conectado ao projeto (o mesmo usado pela
+   atualização automática — veja a seção acima). Sem o Blob configurado, o
+   login continua funcionando normalmente, só que
    nenhum registro fica guardado no servidor.
 
 ### Como consultar
