@@ -683,7 +683,19 @@ async function sendMessage() {
 sendBtn.addEventListener('click', sendMessage);
 inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
-// ---------------- LOGIN (local, sem servidor) ----------------
+// ---------------- LOGIN ----------------
+// O nome/cargo/empresa ficam salvos no navegador (localStorage) para
+// personalizar a conversa, e também são enviados uma vez ao servidor
+// (POST /api/log-access) só para registrar o acesso — sem senha, sem
+// controle de permissão, é só um registro de "quem entrou e quando".
+function logAccess(user) {
+  fetch('/api/log-access', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(user),
+  }).catch(() => {}); // se falhar (ex.: sem internet), não trava o login
+}
+
 function renderLogin() {
   const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
   loginAreaEl.innerHTML = '';
@@ -694,8 +706,10 @@ function renderLogin() {
     const summary = document.createElement('div');
     summary.className = 'login-summary';
     const initials = (user.nome || '?').trim().slice(0, 2).toUpperCase();
+    const subtitulo = [user.cargo, user.empresa].filter(Boolean).join(' · ');
     summary.innerHTML = '<div class="avatar">' + initials + '</div>' +
       '<div><div class="login-name">' + escapeHtml(user.nome) + '</div>' +
+      '<div class="login-sub" style="cursor:default;">' + escapeHtml(subtitulo) + '</div>' +
       '<div class="login-sub" id="logoutBtn">Sair</div></div>';
     box.appendChild(summary);
     loginAreaEl.appendChild(box);
@@ -710,7 +724,8 @@ function renderLogin() {
       '<button class="login-btn" id="openLoginBtn">Fazer login</button>' +
       '<div class="login-form" id="loginForm">' +
       '  <input type="text" id="loginNome" placeholder="Seu nome" />' +
-      '  <input type="email" id="loginEmail" placeholder="Seu e-mail" />' +
+      '  <input type="text" id="loginCargo" placeholder="Seu cargo" />' +
+      '  <input type="text" id="loginEmpresa" placeholder="Sua empresa" />' +
       '  <button id="submitLoginBtn">Entrar</button>' +
       '  <div class="login-note">Login local, apenas para identificar a conversa neste navegador — sem verificação de senha no servidor.</div>' +
       '</div>';
@@ -720,9 +735,12 @@ function renderLogin() {
     };
     document.getElementById('submitLoginBtn').onclick = () => {
       const nome = document.getElementById('loginNome').value.trim();
-      const email = document.getElementById('loginEmail').value.trim();
+      const cargo = document.getElementById('loginCargo').value.trim();
+      const empresa = document.getElementById('loginEmpresa').value.trim();
       if (!nome) return;
-      localStorage.setItem(USER_KEY, JSON.stringify({ nome, email }));
+      const user = { nome, cargo, empresa };
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      logAccess(user);
       renderLogin();
     };
   }

@@ -42,6 +42,8 @@ regras de validação e manual do usuário).
   parecidos com a pergunta dentro desse índice e os envia ao modelo, no lugar
   do resumo fixo — assim a resposta pode citar o artigo exato em vez de um
   resumo genérico.
+- `api/log-access.js` / `api/access-log.js` — registram e mostram quem fez
+  login (nome/cargo/empresa/data-hora) — veja "Registro de acessos" abaixo.
 - `lib/analyze.js` — antes de responder, uma chamada rápida classifica a
   pergunta: se for **ambígua** (depende de algo que só o usuário sabe, ex.:
   o regime tributário da empresa dele), o chatbot pergunta antes de responder;
@@ -244,10 +246,45 @@ data, o título e a URL de cada documento que o pipeline adicionou
 automaticamente, e quantos blocos cada um gerou. É a forma de conferir depois
 o que entrou na base, já que não há aprovação antes de publicar.
 
+## Registro de acessos (quem fez login)
+
+Ao preencher nome/cargo/empresa na barra lateral, além de salvar localmente
+no navegador (para lembrar quem é a pessoa na próxima visita), o site também
+envia esse registro para o servidor — assim você consegue ver quem acessou o
+chat.
+
+### Como configurar
+
+1. Escolha uma senha (só pra você) e configure a variável de ambiente
+   `ACCESS_LOG_SECRET` na Vercel (Settings > Environment Variables), com
+   redeploy depois. Sem essa variável, a página de consulta fica desativada.
+2. Isso também precisa do Blob Store conectado ao projeto (o mesmo `BLOB_
+   READ_WRITE_TOKEN` usado pela atualização automática — veja a seção acima).
+   Sem o Blob configurado, o login continua funcionando normalmente, só que
+   nenhum registro fica guardado no servidor.
+
+### Como consultar
+
+Acesse, no navegador:
+```
+https://seu-site.vercel.app/api/access-log?chave=SUA_SENHA
+```
+(trocando `SUA_SENHA` pela senha que você configurou em `ACCESS_LOG_SECRET`)
+
+Isso mostra uma tabela com nome, cargo, empresa e data/hora de cada login,
+do mais recente para o mais antigo.
+
+**Importante:** isso não é um controle de acesso — qualquer pessoa com o
+link do site consegue usar a RITA e/ou preencher qualquer nome no login
+(não há verificação de identidade). É só um registro informativo de quem
+disse que é quem, e quando.
+
 ## Limitações deste protótipo
 
-- Não há autenticação real — o "login" na barra lateral é só local, salvo no
-  navegador da pessoa, sem verificação de senha no servidor.
+- Não há autenticação real — o "login" na barra lateral não verifica senha
+  nem identidade; qualquer pessoa pode preencher qualquer nome. O que é
+  preenchido fica salvo localmente no navegador da pessoa e (se configurado)
+  registrado no servidor — veja "Registro de acessos" acima.
 - O conteúdo adicionado pela atualização automática (se ativada) não passa por
   revisão humana antes de publicar — veja o aviso na seção acima.
 - Histórico de conversas salvo no navegador (localStorage) — some se a pessoa
