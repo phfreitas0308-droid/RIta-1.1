@@ -62,7 +62,7 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const { question, history } = req.body || {};
+  const { question, history, usuario } = req.body || {};
   if (!question || typeof question !== "string") {
     return res.status(400).json({ error: "Campo 'question' é obrigatório." });
   }
@@ -73,11 +73,17 @@ module.exports = async function handler(req, res) {
   // Verificado no servidor (não só no frontend) para não depender só do
   // JavaScript do navegador — alguém não pode simplesmente ignorar o limite
   // chamando a API diretamente.
+  //
+  // Exceção: quem preencheu nome no login (usuario.nome) não é contado nesse
+  // limite — é tratado como uso identificado/autorizado. Atenção: o login não
+  // tem senha nem verifica identidade, então isso não é uma trava de
+  // segurança real, apenas um filtro simples contra uso anônimo em massa.
+  const logado = Boolean(usuario && typeof usuario.nome === "string" && usuario.nome.trim());
   const MAX_PERGUNTAS_POR_SESSAO = Number(process.env.MAX_PERGUNTAS_POR_SESSAO || 4);
   const perguntasAnteriores = Array.isArray(history)
     ? history.filter((h) => h && h.role === "user").length
     : 0;
-  if (perguntasAnteriores >= MAX_PERGUNTAS_POR_SESSAO) {
+  if (!logado && perguntasAnteriores >= MAX_PERGUNTAS_POR_SESSAO) {
     return res.status(403).json({
       error: `Você atingiu o limite de ${MAX_PERGUNTAS_POR_SESSAO} perguntas nesta conversa. Inicie uma nova conversa para continuar.`,
       meta: { tipo: "limite_atingido" },
