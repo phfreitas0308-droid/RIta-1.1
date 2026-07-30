@@ -401,6 +401,9 @@
   </div>
 
   <div class="question-counter" id="questionCounter"></div>
+  <div class="limit-note" id="loginNote">
+    Faça login (nome, cargo e empresa) na barra lateral para começar a conversar com a RITA.
+  </div>
   <div class="limit-note" id="limitNote">
     Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.
   </div>
@@ -448,6 +451,7 @@ const sendBtn = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const loginAreaEl = document.getElementById('loginArea');
 const limitNoteEl = document.getElementById('limitNote');
+const loginNoteEl = document.getElementById('loginNote');
 const limitNewChatLink = document.getElementById('limitNewChatLink');
 const questionCounterEl = document.getElementById('questionCounter');
 
@@ -503,11 +507,11 @@ function countPerguntas(conv) {
   return conv ? conv.messages.filter(m => m.role === 'user').length : 0;
 }
 
-// Quem fez login (nome/cargo/empresa preenchidos) não fica sujeito ao limite
-// de perguntas por sessão — o limite existe para conter custo de uso anônimo/
-// aberto ao público; uma pessoa identificada é tratada como uso autorizado.
-// (O login não tem senha nem verifica identidade, então isso é só um "portão"
-// simples, não uma trava de segurança real — ver README.)
+// É preciso fazer login (nome/cargo/empresa) antes de poder perguntar
+// qualquer coisa — depois de logado, vale o limite normal de
+// MAX_PERGUNTAS_POR_SESSAO perguntas por conversa. (O login não tem senha nem
+// verifica identidade, então isso não é uma trava de segurança real, é só um
+// "portão" simples contra uso anônimo — ver README.)
 function isLoggedIn() {
   const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
   return Boolean(user && user.nome && user.nome.trim());
@@ -516,16 +520,23 @@ function isLoggedIn() {
 function updateLimitState() {
   const conv = getActive();
   const count = countPerguntas(conv);
-  const atingiuLimite = !isLoggedIn() && count >= MAX_PERGUNTAS_POR_SESSAO;
+  const loggedIn = isLoggedIn();
+  const precisaLogin = !loggedIn;
+  const atingiuLimite = loggedIn && count >= MAX_PERGUNTAS_POR_SESSAO;
+  const bloqueado = precisaLogin || atingiuLimite;
 
-  inputEl.disabled = atingiuLimite;
-  sendBtn.disabled = atingiuLimite;
-  inputEl.placeholder = atingiuLimite
-    ? 'Limite de perguntas atingido nesta conversa.'
-    : 'Digite sua pergunta sobre a reforma tributária...';
+  inputEl.disabled = bloqueado;
+  sendBtn.disabled = bloqueado;
+  inputEl.placeholder = precisaLogin
+    ? 'Faça login na barra lateral para conversar.'
+    : (atingiuLimite
+      ? 'Limite de perguntas atingido nesta conversa.'
+      : 'Digite sua pergunta sobre a reforma tributária...');
+
+  loginNoteEl.style.display = precisaLogin ? 'flex' : 'none';
   limitNoteEl.style.display = atingiuLimite ? 'flex' : 'none';
 
-  questionCounterEl.textContent = count > 0 && !isLoggedIn()
+  questionCounterEl.textContent = loggedIn && count > 0
     ? `Pergunta ${Math.min(count, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} nesta conversa`
     : '';
 }
@@ -638,7 +649,11 @@ async function sendMessage() {
   if (!question) return;
 
   const convCheck = getActive();
-  if (!isLoggedIn() && countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
+  if (!isLoggedIn()) {
+    updateLimitState();
+    return;
+  }
+  if (countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
     updateLimitState();
     return;
   }
@@ -727,6 +742,7 @@ function renderLogin() {
     document.getElementById('logoutBtn').onclick = () => {
       localStorage.removeItem(USER_KEY);
       renderLogin();
+      updateLimitState();
     };
   } else {
     const box = document.createElement('div');
@@ -753,6 +769,7 @@ function renderLogin() {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
       logAccess(user);
       renderLogin();
+      updateLimitState();
     };
   }
 }
