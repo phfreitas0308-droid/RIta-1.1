@@ -67,23 +67,29 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "Campo 'question' é obrigatório." });
   }
 
-  // ---------- Limite de perguntas por sessão/conversa ----------
-  // Protege contra custo descontrolado de API: cada conversa (definida pelo
-  // frontend) pode fazer no máximo MAX_PERGUNTAS_POR_SESSAO perguntas.
-  // Verificado no servidor (não só no frontend) para não depender só do
-  // JavaScript do navegador — alguém não pode simplesmente ignorar o limite
-  // chamando a API diretamente.
-  //
-  // Exceção: quem preencheu nome no login (usuario.nome) não é contado nesse
-  // limite — é tratado como uso identificado/autorizado. Atenção: o login não
-  // tem senha nem verifica identidade, então isso não é uma trava de
-  // segurança real, apenas um filtro simples contra uso anônimo em massa.
+  // ---------- Login obrigatório + limite de perguntas por sessão ----------
+  // É preciso ter feito login (nome/cargo/empresa) para conversar com a RITA
+  // — sem isso, a pergunta é recusada aqui, mesmo que alguém chame a API
+  // diretamente sem passar pelo site. Atenção: o login não tem senha nem
+  // verifica identidade, então isso não é uma trava de segurança real, é só
+  // um filtro simples contra uso totalmente anônimo/aberto.
   const logado = Boolean(usuario && typeof usuario.nome === "string" && usuario.nome.trim());
+  if (!logado) {
+    return res.status(403).json({
+      error: "Faça login (nome, cargo e empresa) na barra lateral para conversar com a RITA.",
+      meta: { tipo: "login_necessario" },
+    });
+  }
+
+  // Depois de logado, cada conversa ainda aceita no máximo
+  // MAX_PERGUNTAS_POR_SESSAO perguntas — protege contra custo descontrolado
+  // de API. Verificado no servidor (não só no frontend) para não depender só
+  // do JavaScript do navegador.
   const MAX_PERGUNTAS_POR_SESSAO = Number(process.env.MAX_PERGUNTAS_POR_SESSAO || 4);
   const perguntasAnteriores = Array.isArray(history)
     ? history.filter((h) => h && h.role === "user").length
     : 0;
-  if (!logado && perguntasAnteriores >= MAX_PERGUNTAS_POR_SESSAO) {
+  if (perguntasAnteriores >= MAX_PERGUNTAS_POR_SESSAO) {
     return res.status(403).json({
       error: `Você atingiu o limite de ${MAX_PERGUNTAS_POR_SESSAO} perguntas nesta conversa. Inicie uma nova conversa para continuar.`,
       meta: { tipo: "limite_atingido" },
