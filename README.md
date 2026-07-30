@@ -310,3 +310,9 @@ conversa (o histórico da conversa anterior continua salvo na barra lateral).
   servidor passa a aceitar o novo limite, mas o frontend continua mostrando o
   aviso com "4" — edite também a constante `MAX_PERGUNTAS_POR_SESSAO` dentro do
   `<script>` do `index.html` para os dois ficarem sincronizados.
+- **Exceção para quem fez login**: quem preencheu nome/cargo/empresa na barra
+  lateral (veja "Registro de acessos" acima) não fica sujeito a esse limite —
+  é tratado como uso identificado. **Atenção:** como o login não tem senha nem
+  verifica identidade, isso não é uma trava de segurança real — é só um filtro
+  simples contra uso anônimo em massa, facilmente contornável por qualquer
+  pessoa que preencha um nome qualquer no login.

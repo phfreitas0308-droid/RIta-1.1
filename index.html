@@ -503,10 +503,20 @@ function countPerguntas(conv) {
   return conv ? conv.messages.filter(m => m.role === 'user').length : 0;
 }
 
+// Quem fez login (nome/cargo/empresa preenchidos) não fica sujeito ao limite
+// de perguntas por sessão — o limite existe para conter custo de uso anônimo/
+// aberto ao público; uma pessoa identificada é tratada como uso autorizado.
+// (O login não tem senha nem verifica identidade, então isso é só um "portão"
+// simples, não uma trava de segurança real — ver README.)
+function isLoggedIn() {
+  const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
+  return Boolean(user && user.nome && user.nome.trim());
+}
+
 function updateLimitState() {
   const conv = getActive();
   const count = countPerguntas(conv);
-  const atingiuLimite = count >= MAX_PERGUNTAS_POR_SESSAO;
+  const atingiuLimite = !isLoggedIn() && count >= MAX_PERGUNTAS_POR_SESSAO;
 
   inputEl.disabled = atingiuLimite;
   sendBtn.disabled = atingiuLimite;
@@ -515,7 +525,7 @@ function updateLimitState() {
     : 'Digite sua pergunta sobre a reforma tributária...';
   limitNoteEl.style.display = atingiuLimite ? 'flex' : 'none';
 
-  questionCounterEl.textContent = count > 0
+  questionCounterEl.textContent = count > 0 && !isLoggedIn()
     ? `Pergunta ${Math.min(count, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} nesta conversa`
     : '';
 }
@@ -628,7 +638,7 @@ async function sendMessage() {
   if (!question) return;
 
   const convCheck = getActive();
-  if (countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
+  if (!isLoggedIn() && countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
     updateLimitState();
     return;
   }
@@ -653,10 +663,11 @@ async function sendMessage() {
   const loadingEl = addMessageEl('bot', 'Consultando a base de conhecimento…', null, 'loading');
 
   try {
+    const usuario = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, history: conv.messages.slice(0, -1) })
+      body: JSON.stringify({ question, history: conv.messages.slice(0, -1), usuario })
     });
     const data = await resp.json();
     loadingEl.remove();
