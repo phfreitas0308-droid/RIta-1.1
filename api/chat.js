@@ -41,7 +41,8 @@ Regras obrigatórias:
 7. Ao final da resposta, adicione uma linha "Fonte:" listando as referências legais usadas e, se tiver usado algum resultado da web, uma linha separada "Fonte adicional (web):" listando título e link.
 8. Não dê conselho jurídico ou contábil definitivo — deixe claro quando estiver interpretando/inferindo, em vez de citando a lei literalmente.
 9. Se a pergunta for sobre algo fora do tema (reforma tributária), diga educadamente que só responde sobre esse assunto.
-10. Se a pergunta for sobre um tema operacional/prático da DeRE (ex.: obrigatoriedade, dispensa de nota fiscal, códigos de erro, regras de validação, estrutura de um evento) e os TRECHOS_LEGAIS_RELEVANTES incluírem um trecho de um documento da DeRE (Manual do Usuário, Leiautes, Anexo I, Anexo II, Mensagens de Erro, Receita Integra ou Histórico de Versões) que responda diretamente, PRIORIZE e cite esse trecho da DeRE primeiro, de forma direta e concreta — é a fonte mais operacional e específica para esse tipo de pergunta. Só depois, se fizer sentido, complemente com o artigo de lei que dá o fundamento legal a essa regra. Evite começar a resposta pela regra geral da lei e mencionar a DeRE só de passagem quando o trecho da DeRE já responde à pergunta de forma direta.`;
+10. Se a pergunta for sobre um tema operacional/prático da DeRE (ex.: obrigatoriedade, dispensa de nota fiscal, códigos de erro, regras de validação, estrutura de um evento) e os TRECHOS_LEGAIS_RELEVANTES incluírem um trecho de um documento da DeRE (Manual do Usuário, Leiautes, Anexo I, Anexo II, Mensagens de Erro, Receita Integra ou Histórico de Versões) que responda diretamente, PRIORIZE e cite esse trecho da DeRE primeiro, de forma direta e concreta — é a fonte mais operacional e específica para esse tipo de pergunta. Só depois, se fizer sentido, complemente com o artigo de lei que dá o fundamento legal a essa regra. Evite começar a resposta pela regra geral da lei e mencionar a DeRE só de passagem quando o trecho da DeRE já responde à pergunta de forma direta.
+11. CONTEUDO_AUTOMATICO_NAO_REVISADO (se presente) vem de páginas que um robô de busca encontrou sozinho na internet, SEM revisão humana antes de entrar aqui — pode ser uma notícia, um rascunho de projeto de lei que ainda muda, ou uma página desatualizada. Trate-o exatamente como trata RESULTADOS_DA_WEB: nunca cite como se fosse o texto oficial da lei/DeRE, nunca escreva uma referência tipo "(Art. X, LC 214/2025)" baseado só nesse conteúdo, e deixe claro quando a informação vier dali (ex.: "segundo uma fonte não revisada encontrada automaticamente, ..."). Em caso de conflito entre CONTEUDO_AUTOMATICO_NAO_REVISADO e qualquer trecho de TRECHOS_LEGAIS_RELEVANTES, o texto legal/DeRE oficial sempre prevalece — e diga isso explicitamente na resposta se notar a divergência, em vez de apenas escolher uma versão em silêncio.`;
 
 module.exports = async function handler(req, res) {
   // CORS básico (ajuste allowed origin se for embutir em outro domínio)
@@ -158,7 +159,18 @@ module.exports = async function handler(req, res) {
       } else {
         retrieved = await retrieve(apiKey, searchQuery);
       }
-      const trechos = retrieved
+
+      // Separa o que é fonte oficial (leis + DeRE, curadas) do que veio do
+      // pipeline automático de busca no Google sem revisão humana — os dois
+      // NUNCA entram no mesmo bloco do prompt. Isso evita que uma notícia ou
+      // um rascunho de projeto de lei encontrado automaticamente seja citado
+      // como se fosse o texto legal, e evita que a resposta para a mesma
+      // pergunta mude de forma inconsistente conforme o cron adiciona/remove
+      // conteúdo do índice automático ao longo do tempo.
+      const retrievedOficial = retrieved.filter((r) => r.fonte !== "auto_web_nao_revisado");
+      const retrievedAutoWeb = retrieved.filter((r) => r.fonte === "auto_web_nao_revisado");
+
+      const trechos = retrievedOficial
         .map((r) => `[${r.referencia}]\n${r.texto}`)
         .join("\n\n---\n\n");
       const subperguntasBlock =
@@ -169,8 +181,17 @@ module.exports = async function handler(req, res) {
       instructions =
         BASE_RULES +
         subperguntasBlock +
-        "\n\nTRECHOS_LEGAIS_RELEVANTES (recuperados por busca semântica para esta pergunta):\n" +
+        "\n\nTRECHOS_LEGAIS_RELEVANTES (recuperados por busca semântica para esta pergunta, todos de fonte oficial curada — leis e documentos DeRE):\n" +
         (trechos || "(nenhum trecho relevante encontrado)");
+
+      if (retrievedAutoWeb.length > 0) {
+        const autoWebBlock = retrievedAutoWeb
+          .map((r) => `[${r.referencia}]\n${r.texto}`)
+          .join("\n\n---\n\n");
+        instructions +=
+          "\n\nCONTEUDO_AUTOMATICO_NAO_REVISADO (encontrado por busca automática no Google, SEM revisão humana — NÃO é texto legal, ver regra 11):\n" +
+          autoWebBlock;
+      }
     } else {
       // Índice ainda não gerado — usa o resumo fixo curado como antes.
       instructions = FALLBACK_INSTRUCTIONS;
@@ -240,7 +261,12 @@ module.exports = async function handler(req, res) {
         complexa: analysis.complexa,
         subperguntas: analysis.subperguntas,
         reasoning_effort: reasoningEffort,
-        trechos_usados: retrieved.map((r) => r.referencia),
+        trechos_usados: retrieved
+          .filter((r) => r.fonte !== "auto_web_nao_revisado")
+          .map((r) => r.referencia),
+        trechos_automaticos_nao_revisados: retrieved
+          .filter((r) => r.fonte === "auto_web_nao_revisado")
+          .map((r) => r.referencia),
         fontes_web: webResults.map((r) => ({ title: r.title, link: r.link })),
       },
     });
