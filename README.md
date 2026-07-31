@@ -94,6 +94,32 @@ arquivos para o GitHub. Sem isso, o site continua funcionando, mas com o
 índice de busca antigo (baseado na divisão anterior, com o bloco gigante nos
 Anexos).
 
+**Atualização de 31/jul — correção de redação antiga x nova:** o texto da
+LC 214/2025 (extraído da página de texto compilado do planalto.gov.br) mostra,
+para vários artigos, a redação ORIGINAL seguida da redação NOVA dada pela
+LC 227/2026, uma logo depois da outra. Isso fazia alguns artigos ficarem
+indexados duas vezes com a mesma referência (uma vigente, outra já superada),
+e a busca podia trazer qualquer uma das duas — o que já causou pelo menos uma
+resposta citando uma regra desatualizada (art. 32, § 1º, sobre split payment).
+`scripts/chunk_laws.py` e `lib/chunker.js` foram corrigidos para reconhecer
+esses casos e manter só a redação vigente; `data/chunks_leis_reforma_tributaria.json`
+já foi regenerado com a correção (leis + DeRE). **Mas os embeddings em
+`data/index_*.json` ainda são os antigos** — para a correção valer no site,
+repita os passos 3 a 6 acima (rodar `node scripts/build_index.js` com sua
+`OPENAI_API_KEY` e subir os novos `data/index_*.json` para o GitHub).
+
+Limitação conhecida, ainda não corrigida: nas "disposições finais" da
+LC 214/2025 e da LC 227/2026 (a parte que altera OUTRAS leis, como o Código
+Tributário Nacional ou a lei do Simples Nacional), alguns trechos dessas
+outras leis acabam indexados com a referência "LC 214/2025" ou "LC 227/2026",
+por reaproveitarem a mesma numeração de artigo. Isso pode ocasionalmente
+trazer um trecho irrelevante na busca (ex.: perguntar sobre "art. 26" ou
+"art. 33" da LC 214/2025 pode trazer, além do trecho certo, um trecho de outra
+lei sendo alterada por ela). Resolver isso direito exige distinguir com
+segurança quando um artigo altera a própria LC 214/2025 (caso em que o trecho
+deveria ficar) de quando altera uma lei totalmente diferente (caso em que
+deveria ser descartado ou marcado à parte) — ainda não implementado.
+
 Se no futuro sair uma nova lei ou regulamentação, adicione o texto extraído
 dela em `sources/`, ajuste `LAW_FILES` em `scripts/chunk_laws.py`, rode
 `python3 scripts/chunk_laws.py` e depois `node scripts/build_index.js` para
