@@ -289,30 +289,42 @@ disse que é quem, e quando.
   preenchido fica salvo localmente no navegador da pessoa e (se configurado)
   registrado no servidor — veja "Registro de acessos" acima.
 - O conteúdo adicionado pela atualização automática (se ativada) não passa por
-  revisão humana antes de publicar — veja o aviso na seção acima.
+  revisão humana antes de publicar — veja o aviso na seção acima. Desde a
+  correção de 31/jul, esse conteúdo é marcado internamente como
+  `auto_web_nao_revisado` e nunca entra no mesmo bloco do prompt que os
+  TRECHOS_LEGAIS_RELEVANTES oficiais (leis + DeRE): ele aparece separado, como
+  "CONTEUDO_AUTOMATICO_NAO_REVISADO", com instrução explícita para o modelo
+  nunca citá-lo como texto legal e sempre priorizar a lei/DeRE em caso de
+  divergência. Isso evita que uma notícia ou rascunho encontrado
+  automaticamente seja citado como se fosse a lei, e reduz respostas
+  divergentes para a mesma pergunta conforme o índice automático muda com o
+  tempo.
 - Histórico de conversas salvo no navegador (localStorage) — some se a pessoa
   limpar os dados do navegador ou trocar de dispositivo.
 
-## Limite de perguntas por sessão
+## Login obrigatório e limite de perguntas por sessão
 
-Cada conversa aceita no máximo **4 perguntas**. Ao atingir o limite, o campo de
-pergunta é bloqueado e aparece um aviso convidando a pessoa a iniciar uma nova
-conversa (o histórico da conversa anterior continua salvo na barra lateral).
+É preciso fazer login (nome, cargo e empresa, na barra lateral) antes de
+conseguir perguntar qualquer coisa para a RITA — sem isso, o campo de
+pergunta fica bloqueado com um aviso pedindo o login. Depois de logado, cada
+conversa aceita no máximo **4 perguntas**; ao atingir o limite, o campo é
+bloqueado de novo e aparece um aviso convidando a iniciar uma nova conversa (o
+histórico da conversa anterior continua salvo na barra lateral).
 
-- **Onde é controlado**: no servidor, em `api/chat.js` (constante
-  `MAX_PERGUNTAS_POR_SESSAO`, configurável também pela variável de ambiente
-  `MAX_PERGUNTAS_POR_SESSAO` na Vercel) — é a barreira que realmente impede
-  gastos além do previsto, mesmo que alguém chame a API diretamente sem passar
-  pelo site. E também no frontend, em `index.html` (mesma constante, no
-  `<script>`), só para mostrar o aviso e desabilitar o campo antes de gastar
-  uma chamada à API à toa.
-- **Para mudar o número**: se só ajustar a variável de ambiente na Vercel, o
-  servidor passa a aceitar o novo limite, mas o frontend continua mostrando o
-  aviso com "4" — edite também a constante `MAX_PERGUNTAS_POR_SESSAO` dentro do
-  `<script>` do `index.html` para os dois ficarem sincronizados.
-- **Exceção para quem fez login**: quem preencheu nome/cargo/empresa na barra
-  lateral (veja "Registro de acessos" acima) não fica sujeito a esse limite —
-  é tratado como uso identificado. **Atenção:** como o login não tem senha nem
-  verifica identidade, isso não é uma trava de segurança real — é só um filtro
-  simples contra uso anônimo em massa, facilmente contornável por qualquer
-  pessoa que preencha um nome qualquer no login.
+**Atenção:** o login não tem senha nem verifica identidade — qualquer pessoa
+pode preencher qualquer nome. Portanto isso não é uma trava de segurança
+real, é só um filtro simples contra uso totalmente anônimo/aberto (e um jeito
+de registrar quem usou o chat — veja "Registro de acessos" acima).
+
+- **Onde é controlado**: no servidor, em `api/chat.js` — recusa a pergunta
+  (403) se não vier um `usuario.nome` preenchido, e separadamente verifica o
+  limite de `MAX_PERGUNTAS_POR_SESSAO` (configurável pela variável de
+  ambiente de mesmo nome na Vercel) — são as barreiras que realmente valem,
+  mesmo que alguém chame a API diretamente sem passar pelo site. E também no
+  frontend, em `index.html` (mesma constante, no `<script>`), só para mostrar
+  os avisos e desabilitar o campo antes de gastar uma chamada à API à toa.
+- **Para mudar o número de perguntas**: se só ajustar a variável de ambiente
+  na Vercel, o servidor passa a aceitar o novo limite, mas o frontend continua
+  mostrando o aviso com "4" — edite também a constante
+  `MAX_PERGUNTAS_POR_SESSAO` dentro do `<script>` do `index.html` para os dois
+  ficarem sincronizados.
