@@ -158,18 +158,28 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // ---------- Etapa 2: busca (simples ou decomposta em sub-perguntas) ----------
-  let instructions;
-  let retrieved = [];
+  // ---------- Etapas 2 e 2.5: busca nas leis/DeRE e busca ao vivo no Google ----------
+  // As duas etapas abaixo são independentes entre si (nenhuma usa o resultado
+  // da outra) — só dependem de "searchQuery", já calculado acima. Antes elas
+  // rodavam uma depois da outra (a busca no Google só começava depois da
+  // busca nas leis terminar), o que somava a latência das duas em série.
+  // Rodando com Promise.all(), o tempo total dessa parte cai para o tempo da
+  // mais lenta das duas, em vez da soma — sem mudar nenhum comportamento,
+  // formato de prompt ou tratamento de erro (cada uma continua com sua
+  // própria rede de segurança, exatamente como antes).
   const reasoningEffort = analysis.complexa ? "high" : "low";
 
-  try {
-    if (await hasIndex()) {
-      if (analysis.complexa && analysis.subperguntas.length > 0) {
-        retrieved = await retrieveMulti(apiKey, [searchQuery, ...analysis.subperguntas], 8, 20);
-      } else {
-        retrieved = await retrieve(apiKey, searchQuery);
+  async function buscarTrechosLegais() {
+    try {
+      if (!(await hasIndex())) {
+        // Índice ainda não gerado — usa o resumo fixo curado como antes.
+        return { instructions: FALLBACK_INSTRUCTIONS, retrieved: [] };
       }
+
+      const retrieved =
+        analysis.complexa && analysis.subperguntas.length > 0
+          ? await retrieveMulti(apiKey, [searchQuery, ...analysis.subperguntas], 8, 20)
+          : await retrieve(apiKey, searchQuery);
 
       // Separa o que é fonte oficial (leis + DeRE, curadas) do que veio do
       // pipeline automático de busca no Google sem revisão humana — os dois
@@ -189,7 +199,7 @@ module.exports = async function handler(req, res) {
           ? "\n\nEsta pergunta foi identificada como complexa e decomposta nas seguintes sub-perguntas para orientar sua análise:\n" +
             analysis.subperguntas.map((s) => `- ${s}`).join("\n")
           : "";
-      instructions =
+      let instructions =
         BASE_RULES +
         subperguntasBlock +
         "\n\nTRECHOS_LEGAIS_RELEVANTES (recuperados por busca semântica para esta pergunta, todos de fonte oficial curada — leis e documentos DeRE):\n" +
@@ -203,40 +213,48 @@ module.exports = async function handler(req, res) {
           "\n\nCONTEUDO_AUTOMATICO_NAO_REVISADO (encontrado por busca automática no Google, SEM revisão humana — NÃO é texto legal, ver regra 11):\n" +
           autoWebBlock;
       }
-    } else {
-      // Índice ainda não gerado — usa o resumo fixo curado como antes.
-      instructions = FALLBACK_INSTRUCTIONS;
+
+      return { instructions, retrieved };
+    } catch (err) {
+      console.error("Erro na busca (retrieval):", err);
+      // Se a busca falhar (ex.: erro de rede na API de embeddings), não derruba o
+      // chat inteiro — cai para o resumo fixo como rede de segurança.
+      return { instructions: FALLBACK_INSTRUCTIONS, retrieved: [] };
     }
-  } catch (err) {
-    console.error("Erro na busca (retrieval):", err);
-    // Se a busca falhar (ex.: erro de rede na API de embeddings), não derruba o
-    // chat inteiro — cai para o resumo fixo como rede de segurança.
-    instructions = FALLBACK_INSTRUCTIONS;
   }
 
-  // ---------- Etapa 2.5: busca ao vivo no Google (contexto complementar) ----------
   // Além do texto das leis, cada pergunta também busca no Google (mesma API/CSE
   // usada pela atualização automática) para trazer contexto atual/prático sobre
   // a Reforma Tributária — notícias, discussões, aplicações reais — que não
   // está e nunca vai estar no texto da lei em si. Opcional: só roda se
   // GOOGLE_API_KEY e GOOGLE_CSE_ID estiverem configurados; se a busca falhar
   // por qualquer motivo, a resposta segue normalmente só com os trechos legais.
-  const googleKey = process.env.GOOGLE_API_KEY;
-  const cseId = process.env.GOOGLE_CSE_ID;
-  let webResults = [];
-  if (googleKey && cseId) {
+  async function buscarWeb() {
+    const googleKey = process.env.GOOGLE_API_KEY;
+    const cseId = process.env.GOOGLE_CSE_ID;
+    if (!googleKey || !cseId) return { webResults: [] };
+
     try {
-      webResults = await searchWeb(googleKey, cseId, searchQuery, { num: WEB_SEARCH_RESULTS });
-      if (webResults.length > 0) {
-        const webBlock = webResults
-          .map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\nLink: ${r.link}`)
-          .join("\n\n");
-        instructions += "\n\nRESULTADOS_DA_WEB (busca no Google, contexto complementar — NÃO é texto legal):\n" + webBlock;
-      }
+      const webResults = await searchWeb(googleKey, cseId, searchQuery, { num: WEB_SEARCH_RESULTS });
+      return { webResults };
     } catch (err) {
       console.error("Erro na busca ao vivo no Google:", err);
       // segue sem contexto da web — nunca trava o chat por causa disso
+      return { webResults: [] };
     }
+  }
+
+  const [{ instructions: instructionsBase, retrieved }, { webResults }] = await Promise.all([
+    buscarTrechosLegais(),
+    buscarWeb(),
+  ]);
+
+  let instructions = instructionsBase;
+  if (webResults.length > 0) {
+    const webBlock = webResults
+      .map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\nLink: ${r.link}`)
+      .join("\n\n");
+    instructions += "\n\nRESULTADOS_DA_WEB (busca no Google, contexto complementar — NÃO é texto legal):\n" + webBlock;
   }
 
   // ---------- Etapa 3: resposta principal, com reasoning_effort conforme a complexidade ----------
