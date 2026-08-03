@@ -112,6 +112,7 @@ module.exports = async function handler(req, res) {
         <select id="filtroEmpresa"><option value="">Todos</option>${options(uniqueSorted("empresa"))}</select>
       </label>
       <button id="limparFiltros">Limpar filtros</button>
+      <button id="baixarExcel">Baixar como Excel (.xlsx)</button>
     </div>
 
     <table>
@@ -119,6 +120,7 @@ module.exports = async function handler(req, res) {
       <tbody id="corpoTabela">${rows || "<tr><td colspan='4'>Nenhum login registrado ainda.</td></tr>"}</tbody>
     </table>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
       const totalLogins = ${toScriptJson(log.length)};
       const filtroNome = document.getElementById('filtroNome');
@@ -151,6 +153,25 @@ module.exports = async function handler(req, res) {
         filtroCargo.value = '';
         filtroEmpresa.value = '';
         aplicarFiltros();
+      });
+
+      // Baixa como .xlsx só as linhas VISÍVEIS no momento (ou seja, respeita
+      // os filtros de nome/cargo/empresa aplicados na tela) — se nenhum
+      // filtro estiver ativo, baixa o registro inteiro.
+      document.getElementById('baixarExcel').addEventListener('click', () => {
+        const cabecalho = ['Data/hora', 'Nome', 'Cargo', 'Empresa'];
+        const linhasVisiveis = linhas.filter((tr) => !tr.classList.contains('oculta'));
+        const dados = linhasVisiveis.map((tr) =>
+          Array.from(tr.querySelectorAll('td')).map((td) => td.textContent)
+        );
+
+        const planilha = XLSX.utils.aoa_to_sheet([cabecalho, ...dados]);
+        planilha['!cols'] = [{ wch: 20 }, { wch: 26 }, { wch: 22 }, { wch: 28 }];
+        const pasta = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(pasta, planilha, 'Registro de acessos');
+
+        const agora = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(pasta, 'registro-acessos-rita-' + agora + '.xlsx');
       });
     </script>
   `;
