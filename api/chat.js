@@ -53,7 +53,8 @@ Note que cada parágrafo carrega sua própria citação entre parênteses, embut
 9. Se a pergunta for sobre algo fora do tema (reforma tributária), diga educadamente que só responde sobre esse assunto.
 10. Se a pergunta for sobre um tema operacional/prático da DeRE (ex.: obrigatoriedade, dispensa de nota fiscal, códigos de erro, regras de validação, estrutura de um evento) e os TRECHOS_LEGAIS_RELEVANTES incluírem um trecho de um documento da DeRE (Manual do Usuário, Leiautes, Anexo I, Anexo II, Mensagens de Erro, Receita Integra ou Histórico de Versões) que responda diretamente, PRIORIZE e cite esse trecho da DeRE primeiro, de forma direta e concreta — é a fonte mais operacional e específica para esse tipo de pergunta. Só depois, se fizer sentido, complemente com o artigo de lei que dá o fundamento legal a essa regra. Evite começar a resposta pela regra geral da lei e mencionar a DeRE só de passagem quando o trecho da DeRE já responde à pergunta de forma direta.
 11. CONTEUDO_AUTOMATICO_NAO_REVISADO (se presente) vem de páginas que um robô de busca encontrou sozinho na internet, SEM revisão humana antes de entrar aqui — pode ser uma notícia, um rascunho de projeto de lei que ainda muda, ou uma página desatualizada. Trate-o exatamente como trata RESULTADOS_DA_WEB: nunca cite como se fosse o texto oficial da lei/DeRE, nunca escreva uma referência tipo "(Art. X, LC 214/2025)" baseado só nesse conteúdo, e deixe claro quando a informação vier dali (ex.: "segundo uma fonte não revisada encontrada automaticamente, ..."). Em caso de conflito entre CONTEUDO_AUTOMATICO_NAO_REVISADO e qualquer trecho de TRECHOS_LEGAIS_RELEVANTES, o texto legal/DeRE oficial sempre prevalece — e diga isso explicitamente na resposta se notar a divergência, em vez de apenas escolher uma versão em silêncio.
-12. Se a resposta correta for "depende" (varia conforme o tributo, o tipo de operação, se há um regime específico aplicável etc.), NUNCA abra a resposta com um "Sim" ou "Não"/"Não precisa" categórico que só valha para uma fatia do problema — isso é o que mais confunde quem pergunta a mesma coisa mais de uma vez e recebe manchetes opostas. Em vez disso, a PRIMEIRA frase deve deixar claro que a resposta é dividida (ex.: "Depende do tributo e do tipo de operação: para X, sim; para Y, há uma dispensa específica quando..."), e só depois desenvolva cada caso, sempre na mesma ordem: (1) regra geral, (2) exceção/regime específico aplicável e seu escopo exato, (3) o que muda para tributos legados (se relevante), (4) síntese final de uma frase. Mantenha essa estrutura de forma consistente sempre que a pergunta se encaixar nesse padrão de "regra geral + exceção", para que perguntas iguais ou parecidas cheguem à mesma conclusão de fundo, mesmo que as palavras não sejam idênticas.`;
+12. Se a resposta correta for "depende" (varia conforme o tributo, o tipo de operação, se há um regime específico aplicável etc.), NUNCA abra a resposta com um "Sim" ou "Não"/"Não precisa" categórico que só valha para uma fatia do problema — isso é o que mais confunde quem pergunta a mesma coisa mais de uma vez e recebe manchetes opostas. Em vez disso, a PRIMEIRA frase deve deixar claro que a resposta é dividida (ex.: "Depende do tributo e do tipo de operação: para X, sim; para Y, há uma dispensa específica quando..."), e só depois desenvolva cada caso, sempre na mesma ordem: (1) regra geral, (2) exceção/regime específico aplicável e seu escopo exato, (3) o que muda para tributos legados (se relevante), (4) síntese final de uma frase. Mantenha essa estrutura de forma consistente sempre que a pergunta se encaixar nesse padrão de "regra geral + exceção", para que perguntas iguais ou parecidas cheguem à mesma conclusão de fundo, mesmo que as palavras não sejam idênticas.
+13. Antes de citar qualquer crédito presumido, benefício fiscal ou regime diferenciado como exemplo de resposta a uma pergunta GERAL (ex.: sobre marketplace, split payment, ou qualquer tema que não menciona um setor/região específica), verifique se esse crédito/benefício é uma regra de aplicação ampla (ex.: cesta básica nacional, regime geral de não cumulatividade) ou uma exceção setorial/regional restrita a um grupo específico de contribuintes (ex.: Zona Franca de Manaus e áreas de livre comércio, programas de incentivo a montadoras/indústria automotiva como o de que trata a Lei nº 9.440/1997, ou qualquer outro regime vinculado a uma região ou setor industrial nomeado). Se for uma exceção restrita, é PROIBIDO apresentá-la como se fosse um exemplo típico ou representativo do caso geral perguntado — diga isso explicitamente (ex.: "este crédito presumido do art. X é um benefício restrito a [setor/região específica], não uma regra geral aplicável a qualquer vendedor/contribuinte; para o caso geral, o que se aplica é..."). Só use um exemplo de regime setorial/regional quando a própria pergunta do usuário for sobre aquele setor/região, ou quando você deixar clara a ressalva de que é uma exceção pontual.`;
 
 module.exports = async function handler(req, res) {
   // CORS básico (ajuste allowed origin se for embutir em outro domínio)
@@ -79,24 +80,13 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: "Campo 'question' é obrigatório." });
   }
 
-  // ---------- Login obrigatório + limite de perguntas por sessão ----------
-  // É preciso ter feito login (nome/cargo/empresa) para conversar com a RITA
-  // — sem isso, a pergunta é recusada aqui, mesmo que alguém chame a API
-  // diretamente sem passar pelo site. Atenção: o login não tem senha nem
-  // verifica identidade, então isso não é uma trava de segurança real, é só
-  // um filtro simples contra uso totalmente anônimo/aberto.
-  const logado = Boolean(usuario && typeof usuario.nome === "string" && usuario.nome.trim());
-  if (!logado) {
-    return res.status(403).json({
-      error: "Faça login (nome, cargo e empresa) na barra lateral para conversar com a RITA.",
-      meta: { tipo: "login_necessario" },
-    });
-  }
-
-  // Depois de logado, cada conversa ainda aceita no máximo
-  // MAX_PERGUNTAS_POR_SESSAO perguntas — protege contra custo descontrolado
-  // de API. Verificado no servidor (não só no frontend) para não depender só
-  // do JavaScript do navegador.
+  // ---------- Limite de perguntas por sessão ----------
+  // O login (nome/cargo/empresa) é opcional — não é mais exigido para
+  // conversar com a RITA; "usuario" (se vier preenchido) só é usado para
+  // identificar o acesso no registro de acessos (ver api/log-access.js).
+  // Cada conversa aceita no máximo MAX_PERGUNTAS_POR_SESSAO perguntas —
+  // protege contra custo descontrolado de API. Verificado no servidor (não só
+  // no frontend) para não depender só do JavaScript do navegador.
   const MAX_PERGUNTAS_POR_SESSAO = Number(process.env.MAX_PERGUNTAS_POR_SESSAO || 4);
   const perguntasAnteriores = Array.isArray(history)
     ? history.filter((h) => h && h.role === "user").length
