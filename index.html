@@ -425,9 +425,6 @@
   </div>
 
   <div class="question-counter" id="questionCounter"></div>
-  <div class="limit-note" id="loginNote">
-    Faça login (nome, cargo e empresa) na barra lateral para começar a conversar com a RITA.
-  </div>
   <div class="limit-note" id="limitNote">
     Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.
   </div>
@@ -475,7 +472,6 @@ const sendBtn = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const loginAreaEl = document.getElementById('loginArea');
 const limitNoteEl = document.getElementById('limitNote');
-const loginNoteEl = document.getElementById('loginNote');
 const limitNewChatLink = document.getElementById('limitNewChatLink');
 const questionCounterEl = document.getElementById('questionCounter');
 
@@ -531,11 +527,11 @@ function countPerguntas(conv) {
   return conv ? conv.messages.filter(m => m.role === 'user').length : 0;
 }
 
-// É preciso fazer login (nome/cargo/empresa) antes de poder perguntar
-// qualquer coisa — depois de logado, vale o limite normal de
-// MAX_PERGUNTAS_POR_SESSAO perguntas por conversa. (O login não tem senha nem
-// verifica identidade, então isso não é uma trava de segurança real, é só um
-// "portão" simples contra uso anônimo — ver README.)
+// O login (nome/cargo/empresa) é opcional — dá pra conversar com a RITA sem
+// logar. Quem loga só ajuda a identificar a conversa e aparece no registro de
+// acessos (ver /api/access-log); não é uma trava de acesso. O limite de
+// MAX_PERGUNTAS_POR_SESSAO perguntas por conversa vale para todo mundo, logado
+// ou não.
 function isLoggedIn() {
   const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
   return Boolean(user && user.nome && user.nome.trim());
@@ -544,23 +540,17 @@ function isLoggedIn() {
 function updateLimitState() {
   const conv = getActive();
   const count = countPerguntas(conv);
-  const loggedIn = isLoggedIn();
-  const precisaLogin = !loggedIn;
-  const atingiuLimite = loggedIn && count >= MAX_PERGUNTAS_POR_SESSAO;
-  const bloqueado = precisaLogin || atingiuLimite;
+  const atingiuLimite = count >= MAX_PERGUNTAS_POR_SESSAO;
 
-  inputEl.disabled = bloqueado;
-  sendBtn.disabled = bloqueado;
-  inputEl.placeholder = precisaLogin
-    ? 'Faça login na barra lateral para conversar.'
-    : (atingiuLimite
-      ? 'Limite de perguntas atingido nesta conversa.'
-      : 'Digite sua pergunta sobre a reforma tributária...');
+  inputEl.disabled = atingiuLimite;
+  sendBtn.disabled = atingiuLimite;
+  inputEl.placeholder = atingiuLimite
+    ? 'Limite de perguntas atingido nesta conversa.'
+    : 'Digite sua pergunta sobre a reforma tributária...';
 
-  loginNoteEl.style.display = precisaLogin ? 'flex' : 'none';
   limitNoteEl.style.display = atingiuLimite ? 'flex' : 'none';
 
-  questionCounterEl.textContent = loggedIn && count > 0
+  questionCounterEl.textContent = count > 0
     ? `Pergunta ${Math.min(count, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} nesta conversa`
     : '';
 }
@@ -778,10 +768,6 @@ async function sendMessage() {
   if (!question) return;
 
   const convCheck = getActive();
-  if (!isLoggedIn()) {
-    updateLimitState();
-    return;
-  }
   if (countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
     updateLimitState();
     return;
