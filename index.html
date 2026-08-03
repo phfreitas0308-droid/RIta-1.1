@@ -275,8 +275,32 @@
     border-radius: 12px;
     font-size: 13.5px;
     line-height: 1.55;
-    white-space: pre-wrap;
   }
+  .msg.user { white-space: pre-wrap; }
+  .msg.bot p { margin: 0 0 10px; }
+  .msg.bot p:last-child { margin-bottom: 0; }
+  .msg.bot ul, .msg.bot ol { margin: 0 0 10px; padding-left: 20px; }
+  .msg.bot li { margin-bottom: 3px; }
+  .msg.bot table.md-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0 10px;
+    font-size: 12.5px;
+    display: block;
+    overflow-x: auto;
+  }
+  .msg.bot table.md-table th, .msg.bot table.md-table td {
+    border: 1px solid var(--line);
+    padding: 6px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .msg.bot table.md-table th {
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .msg.bot table.md-table tr:nth-child(even) td { background: #FAF7F4; }
   .msg.user {
     align-self: flex-end;
     background: var(--accent);
@@ -623,10 +647,115 @@ function renderActiveConversation() {
   updateLimitState();
 }
 
+// Converte um texto simples com marcações Markdown (tabelas, **negrito**,
+// *itálico*, listas com "-"/"1.") em HTML de verdade. A RITA às vezes monta
+// tabelas (ex.: comparando regimes) e usa **negrito**/listas na resposta, mas
+// antes disso era exibido como texto cru (com | e ** aparecendo literalmente
+// na tela) porque a página só usava textContent. Escapa o HTML de cada trecho
+// de texto ANTES de aplicar as marcações, para nunca injetar HTML/script vindo
+// da resposta do modelo ou de um snippet da web.
+function inlineMdToHtml(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  return html;
+}
+
+function isTableSeparatorLine(line) {
+  return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line);
+}
+
+function parseTableRow(line) {
+  const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  return trimmed.split('|').map((cell) => cell.trim());
+}
+
+function renderTableBlock(lines) {
+  const headerCells = parseTableRow(lines[0]);
+  const bodyRows = lines.slice(2).map(parseTableRow);
+  let out = '<table class="md-table"><thead><tr>';
+  headerCells.forEach((c) => { out += '<th>' + inlineMdToHtml(c) + '</th>'; });
+  out += '</tr></thead><tbody>';
+  bodyRows.forEach((row) => {
+    out += '<tr>';
+    row.forEach((c) => { out += '<td>' + inlineMdToHtml(c) + '</td>'; });
+    out += '</tr>';
+  });
+  out += '</tbody></table>';
+  return out;
+}
+
+function mdToHtml(text) {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const blocks = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // Bloco de tabela: uma linha com "|", seguida de uma linha separadora "---|---".
+    if (line.includes('|') && i + 1 < lines.length && isTableSeparatorLine(lines[i + 1])) {
+      const tableLines = [line, lines[i + 1]];
+      let j = i + 2;
+      while (j < lines.length && lines[j].includes('|') && lines[j].trim() !== '') {
+        tableLines.push(lines[j]);
+        j++;
+      }
+      blocks.push(renderTableBlock(tableLines));
+      i = j;
+      continue;
+    }
+
+    // Bloco de lista (sequência de linhas "- item" ou "1. item").
+    const isUlLine = /^\s*[-*]\s+/.test(line);
+    const isOlLine = /^\s*\d+[.)]\s+/.test(line);
+    if (isUlLine || isOlLine) {
+      const tag = isUlLine ? 'ul' : 'ol';
+      const itemRe = isUlLine ? /^\s*[-*]\s+/ : /^\s*\d+[.)]\s+/;
+      let out = '<' + tag + '>';
+      let j = i;
+      while (j < lines.length && itemRe.test(lines[j])) {
+        out += '<li>' + inlineMdToHtml(lines[j].replace(itemRe, '')) + '</li>';
+        j++;
+      }
+      out += '</' + tag + '>';
+      blocks.push(out);
+      i = j;
+      continue;
+    }
+
+    // Linha em branco: separa parágrafos, não gera bloco próprio.
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    // Parágrafo normal: junta linhas seguidas (sem linha em branco) com <br>.
+    const paraLines = [line];
+    let j = i + 1;
+    while (
+      j < lines.length &&
+      lines[j].trim() !== '' &&
+      !/^\s*[-*]\s+/.test(lines[j]) &&
+      !/^\s*\d+[.)]\s+/.test(lines[j]) &&
+      !(lines[j].includes('|') && j + 1 < lines.length && isTableSeparatorLine(lines[j + 1]))
+    ) {
+      paraLines.push(lines[j]);
+      j++;
+    }
+    blocks.push('<p>' + paraLines.map(inlineMdToHtml).join('<br>') + '</p>');
+    i = j;
+  }
+  return blocks.join('');
+}
+
 function addMessageEl(role, text, fonteText, cls) {
   const div = document.createElement('div');
   div.className = 'msg ' + (cls || (role === 'user' ? 'user' : 'bot'));
-  div.textContent = text;
+  if (role === 'bot' && !cls) {
+    div.innerHTML = mdToHtml(text);
+  } else {
+    div.textContent = text;
+  }
   if (fonteText) {
     const f = document.createElement('span');
     f.className = 'fonte';
