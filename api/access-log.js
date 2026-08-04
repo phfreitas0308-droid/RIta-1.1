@@ -100,6 +100,7 @@ module.exports = async function handler(req, res) {
   const body = `
     <h1>RITA — Registro de acessos</h1>
     <p class="sub" id="contagem">${log.length} login${log.length === 1 ? "" : "s"} registrado${log.length === 1 ? "" : "s"} (mais recente primeiro).</p>
+    <p><a style="font-size:12.5px;color:#7A6F63;" href="/api/survey-log?chave=${encodeURIComponent(chave)}">Ver pesquisa de perfil →</a></p>
 
     <div class="filters">
       <label>Nome
