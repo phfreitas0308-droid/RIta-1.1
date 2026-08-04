@@ -369,8 +369,8 @@
 
   .limit-note {
     display: none;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 4px;
     max-width: 760px;
     width: 100%;
     margin: 0 auto;
@@ -426,7 +426,8 @@
 
   <div class="question-counter" id="questionCounter"></div>
   <div class="limit-note" id="limitNote">
-    Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.
+    <span>Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.</span>
+    <span>Antes disso, ajude a melhorar a RITA respondendo a esta <a id="limitFormLink" href="https://docs.google.com/forms/d/e/1FAIpQLSf2q7gLuKdhK2_MwotL9Y7O5dxc-spI5FtX7tQlYl6Vlrui3A/viewform?usp=header" target="_blank" rel="noopener">pesquisa rápida</a>.</span>
   </div>
   <div class="inputbar">
     <div class="inputbar-inner">
