@@ -65,6 +65,7 @@
   }
   .new-chat-btn:hover { background: #2E2721; }
   .new-chat-btn .plus { color: var(--accent); font-weight: 700; }
+  .new-chat-btn:disabled, .conv-list.locked { opacity: 0.45; pointer-events: none; cursor: default; }
 
   .conv-section-label {
     margin: 18px 8px 6px;
@@ -427,7 +428,6 @@
   <div class="question-counter" id="questionCounter"></div>
   <div class="limit-note" id="limitNote">
     <span>Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.</span>
-    <span>Antes disso, ajude a melhorar a RITA respondendo a esta <a id="limitFormLink" href="https://docs.google.com/forms/d/e/1FAIpQLSf2q7gLuKdhK2_MwotL9Y7O5dxc-spI5FtX7tQlYl6Vlrui3A/viewform?usp=header" target="_blank" rel="noopener">pesquisa rápida</a>.</span>
   </div>
   <div class="inputbar">
     <div class="inputbar-inner">
@@ -448,6 +448,26 @@ const SUGESTOES = [
 const STORAGE_KEY = "rita_conversations";
 const ACTIVE_KEY = "rita_active_id";
 const USER_KEY = "rita_user";
+const SURVEY_KEY = "rita_survey_v1";
+
+// Perguntas de identificação, feitas só se o visitante ainda não tiver
+// logado (nome/cargo/empresa) — evita perguntar de novo o que o login já
+// coletou. As 8 perguntas de perfil em si vêm depois, sempre.
+const SURVEY_QUESTOES_ID = [
+  { key: "nome", label: "Nome" },
+  { key: "cargo", label: "Cargo" },
+  { key: "empresa", label: "Empresa que Trabalha" },
+];
+const SURVEY_QUESTOES = [
+  { key: "nivelConhecimento", label: "Qual é seu nível atual de conhecimento sobre Reforma Tributária?" },
+  { key: "duvidas", label: "Quais são suas principais dúvidas ou pontos de incerteza sobre reforma tributaria?" },
+  { key: "aprofundar", label: "Em qual aspecto da reforma você gostaria de se aprofundar mais?" },
+  { key: "desafio", label: "Qual é seu principal desafio atual com a implementação?" },
+  { key: "projetos", label: "Você já trabalhou ou está trabalhando em projetos relacionados à adequação da Reforma Tributária?" },
+  { key: "regimeEspecificoGeral", label: "Você está familiarizado com os conceitos da Reforma Específica e Regime Geral?" },
+  { key: "creditamento", label: "Qual é seu grau de familiaridade com as regras de creditamento (CBS/IBS)?" },
+  { key: "frequenciaConsulta", label: "Com que frequência você consulta a legislação da Reforma Tributária (LC 214, Decreto 12.955)?" },
+];
 const MAX_PERGUNTAS_POR_SESSAO = 4; // limite de perguntas por conversa (também aplicado no servidor, em api/chat.js)
 
 let conversations = loadConversations();
@@ -476,6 +496,83 @@ const limitNoteEl = document.getElementById('limitNote');
 const limitNewChatLink = document.getElementById('limitNewChatLink');
 const questionCounterEl = document.getElementById('questionCounter');
 
+// ---------------- PESQUISA DE PERFIL (pós-limite) ----------------
+// Ao atingir o limite de perguntas de uma conversa, a RITA conduz — dentro do
+// próprio chat — as perguntas de SURVEY_QUESTOES (e, se o visitante ainda não
+// tiver logado, também SURVEY_QUESTOES_ID antes delas). É obrigatório
+// responder para poder abrir uma nova conversa; por isso a navegação lateral
+// (nova conversa / trocar de conversa / excluir) fica bloqueada enquanto
+// pesquisaAtiva for true. A pesquisa só é pedida uma vez por navegador —
+// depois de respondida, fica marcada em SURVEY_KEY no localStorage.
+let pesquisaAtiva = false;
+let pesquisaFila = [];
+let pesquisaRespostas = {};
+
+function getSurveyState() {
+  try {
+    return JSON.parse(localStorage.getItem(SURVEY_KEY) || 'null') || { completed: false };
+  } catch (e) {
+    return { completed: false };
+  }
+}
+
+function isSurveyCompleted() {
+  return getSurveyState().completed === true;
+}
+
+function iniciarPesquisa() {
+  if (pesquisaAtiva) return;
+  pesquisaAtiva = true;
+  pesquisaRespostas = {};
+
+  const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
+  const jaIdentificado = Boolean(user && user.nome && user.nome.trim());
+  if (jaIdentificado) {
+    pesquisaRespostas.nome = user.nome;
+    pesquisaRespostas.cargo = user.cargo || '';
+    pesquisaRespostas.empresa = user.empresa || '';
+    pesquisaFila = SURVEY_QUESTOES.slice();
+  } else {
+    pesquisaFila = SURVEY_QUESTOES_ID.concat(SURVEY_QUESTOES);
+  }
+
+  limitNoteEl.style.display = 'none';
+  addMessageEl('bot', 'Você atingiu o limite de perguntas desta conversa. Antes de abrir uma nova conversa, me ajude respondendo a estas perguntas rápidas sobre você e seu conhecimento da Reforma Tributária:');
+  addMessageEl('bot', pesquisaFila[0].label);
+  updateLimitState();
+  inputEl.focus();
+}
+
+async function responderPesquisa(texto) {
+  const pergunta = pesquisaFila.shift();
+  pesquisaRespostas[pergunta.key] = texto;
+  addMessageEl('user', texto);
+
+  if (pesquisaFila.length === 0) {
+    await finalizarPesquisa();
+  } else {
+    addMessageEl('bot', pesquisaFila[0].label);
+  }
+}
+
+async function finalizarPesquisa() {
+  pesquisaAtiva = false;
+  localStorage.setItem(SURVEY_KEY, JSON.stringify({ completed: true, respondidoEm: new Date().toISOString() }));
+  addMessageEl('bot', 'Obrigada pelas respostas — isso ajuda bastante a melhorar a RITA. Já pode abrir uma nova conversa quando quiser.');
+
+  try {
+    await fetch('/api/survey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ respostas: pesquisaRespostas })
+    });
+  } catch (err) {
+    // não bloqueia a experiência do visitante se o registro no servidor falhar
+  }
+
+  updateLimitState();
+}
+
 SUGESTOES.forEach(q => {
   const b = document.createElement('button');
   b.className = 'quick-card';
@@ -485,6 +582,7 @@ SUGESTOES.forEach(q => {
 });
 
 newChatBtn.addEventListener('click', () => {
+  if (pesquisaAtiva) return; // trava extra além do disabled/pointer-events (ver renderSidebarLockState)
   const c = createConversationObject();
   conversations.unshift(c);
   activeId = c.id;
@@ -543,17 +641,40 @@ function updateLimitState() {
   const count = countPerguntas(conv);
   const atingiuLimite = count >= MAX_PERGUNTAS_POR_SESSAO;
 
-  inputEl.disabled = atingiuLimite;
-  sendBtn.disabled = atingiuLimite;
-  inputEl.placeholder = atingiuLimite
-    ? 'Limite de perguntas atingido nesta conversa.'
-    : 'Digite sua pergunta sobre a reforma tributária...';
+  // Se o limite foi atingido e a pesquisa de perfil ainda não foi respondida
+  // neste navegador, a RITA assume a condução da conversa (iniciarPesquisa) —
+  // isso reaproveita a mesma caixa de texto, então ela não pode ficar
+  // desabilitada nesse caso.
+  if (atingiuLimite && !isSurveyCompleted() && !pesquisaAtiva) {
+    iniciarPesquisa();
+    return; // iniciarPesquisa() já chama updateLimitState() de novo no final
+  }
 
-  limitNoteEl.style.display = atingiuLimite ? 'flex' : 'none';
+  const bloqueado = atingiuLimite && !pesquisaAtiva;
+  inputEl.disabled = bloqueado;
+  sendBtn.disabled = bloqueado;
+  inputEl.placeholder = pesquisaAtiva
+    ? 'Digite sua resposta...'
+    : (atingiuLimite
+      ? 'Limite de perguntas atingido nesta conversa.'
+      : 'Digite sua pergunta sobre a reforma tributária...');
+
+  limitNoteEl.style.display = bloqueado ? 'flex' : 'none';
+  renderSidebarLockState();
 
   questionCounterEl.textContent = count > 0
     ? `Pergunta ${Math.min(count, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} nesta conversa`
     : '';
+}
+
+// Enquanto a pesquisa de perfil está em andamento (pesquisaAtiva), bloqueia
+// criar/trocar/excluir conversa pela barra lateral — a pesquisa é obrigatória
+// antes de abrir uma nova conversa, então deixar esses atalhos abertos
+// permitiria contornar isso.
+function renderSidebarLockState() {
+  newChatBtn.disabled = pesquisaAtiva;
+  newChatBtn.title = pesquisaAtiva ? 'Responda a pesquisa no chat antes de abrir uma nova conversa.' : '';
+  convListEl.classList.toggle('locked', pesquisaAtiva);
 }
 
 function renderSidebar() {
@@ -567,6 +688,7 @@ function renderSidebar() {
     label.className = 'conv-item-label';
     label.textContent = c.title;
     label.onclick = () => {
+      if (pesquisaAtiva) return; // trava extra além do disabled/pointer-events (ver renderSidebarLockState)
       activeId = c.id;
       persist();
       renderSidebar();
@@ -582,12 +704,14 @@ function renderSidebar() {
     delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 12a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     delBtn.onclick = (e) => {
       e.stopPropagation();
+      if (pesquisaAtiva) return;
       deleteConversation(c.id);
     };
     item.appendChild(delBtn);
 
     convListEl.appendChild(item);
   });
+  renderSidebarLockState();
 }
 
 function deleteConversation(id) {
@@ -767,6 +891,17 @@ function splitFonte(fullText) {
 async function sendMessage() {
   const question = inputEl.value.trim();
   if (!question) return;
+
+  // Enquanto a pesquisa de perfil está em andamento, a mesma caixa de texto é
+  // usada para responder as perguntas da RITA, em vez de ir para /api/chat.
+  if (pesquisaAtiva) {
+    inputEl.value = '';
+    sendBtn.disabled = true;
+    await responderPesquisa(question);
+    updateLimitState(); // reabilita input/sendBtn para a próxima pergunta, ou trava tudo se a pesquisa acabou
+    if (!inputEl.disabled) inputEl.focus();
+    return;
+  }
 
   const convCheck = getActive();
   if (countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
