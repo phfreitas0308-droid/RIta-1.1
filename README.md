@@ -2,9 +2,10 @@
 
 Chatbot que responde dúvidas sobre a Reforma Tributária brasileira (IBS, CBS,
 Imposto Seletivo, cronograma de transição, alíquotas e split payment), com
-base na EC 132/2023, LC 214/2025 e LC 227/2026, além dos documentos técnicos
-da DeRE (Declaração de Regimes Específicos — leiautes, mensagens de erro,
-regras de validação e manual do usuário).
+base na EC 132/2023, LC 214/2025, LC 227/2026 e no Decreto 12.955/2026
+(regulamento da CBS), além dos documentos técnicos da DeRE (Declaração de
+Regimes Específicos — leiautes, mensagens de erro, regras de validação e
+manual do usuário).
 
 ## Como funciona
 
@@ -13,8 +14,9 @@ regras de validação e manual do usuário).
   chama a API da OpenAI **no servidor**, mantendo sua chave protegida.
 - `lib/kb.js` — resumo curado da legislação (usado como rede de segurança
   enquanto o índice de busca abaixo não existir).
-- `sources/*.txt` — textos brutos da EC 132/2023, LC 214/2025, LC 227/2026 e do
-  glossário, extraídos dos documentos oficiais.
+- `sources/*.txt` — textos brutos da EC 132/2023, LC 214/2025, LC 227/2026, do
+  Decreto 12.955/2026 (regulamento da CBS) e do glossário, extraídos dos
+  documentos oficiais.
 - `scripts/chunk_laws.py` — divide esses textos em ~4.000 blocos por artigo/
   parágrafo/inciso, cada um com sua referência exata (ex.:
   `"Art. 47, § 2º, inciso III, LC 214/2025"`), e grava o resultado em
@@ -111,6 +113,42 @@ já foi regenerado com a correção (leis + DeRE). **Mas os embeddings em
 repita os passos 3 a 6 acima (rodar `node scripts/build_index.js` com sua
 `OPENAI_API_KEY` e subir os novos `data/index_*.json` para o GitHub).
 
+**Atualização de 05/ago — adicionado o Decreto 12.955/2026 (regulamento da CBS)
+e corrigido um bug que perdia os Arts. 1º a 9º de TODAS as leis:**
+`scripts/chunk_laws.py` e `lib/chunker.js` reconheciam o início de um artigo
+só quando havia um ponto logo após o número (ex.: "Art. 10."). Só que a
+convenção de redação legislativa brasileira NÃO usa ponto para os artigos de
+1º a 9º (ex.: "Art. 1º", sem ponto) — só a partir do Art. 10 em diante. Isso
+fazia com que os Arts. 1º a 9º de EC 132/2023, LC 214/2025 e LC 227/2026
+NUNCA fossem reconhecidos como início de artigo e ficassem de fora do índice
+de busca desde o início do projeto — incluindo dispositivos centrais, como os
+artigos que definem a incidência do IBS/CBS (art. 4º) e o que não incide
+(art. 6º) da LC 214/2025. O ponto agora é opcional nesse regex (exige só que
+venha um espaço/quebra de linha depois do número). `sources/decreto_12955.txt`
+foi adicionado com o mesmo processo dos demais (`LAW_FILES` em
+`chunk_laws.py`, `SOURCE_TO_FILE` em `build_index.js`, e uma dica de menção
+("Decreto 12.955") em `lib/retrieval.js`, no mesmo padrão de LC/EC).
+`data/chunks_leis_reforma_tributaria.json` já foi regenerado com as duas
+mudanças (leis + Decreto + DeRE). **Mas, como sempre, os embeddings em
+`data/index_*.json` ainda são os antigos — é preciso rodar
+`node scripts/build_index.js` de novo (com sua `OPENAI_API_KEY`) para as duas
+correções valerem no site**, e dessa vez isso regenera TODOS os
+`data/index_*.json` das leis (não só o do Decreto novo), já que o conteúdo de
+EC 132/2023, LC 214/2025 e LC 227/2026 também mudou (ganharam os Arts. 1º-9º
+que faltavam).
+
+**Efeito colateral encontrado ao corrigir o bug acima:** a limitação abaixo
+("trechos de outras leis citados dentro das disposições finais") ficou mais
+visível para artigos de número baixo (1 a 9), porque esses trechos citados de
+OUTRAS leis também costumam começar do "Art. 1º" e também não tinham ponto —
+ou seja, a mesma correção que resgatou os Arts. 1º-9º verdadeiros também
+resgatou colisões que antes ficavam escondidas pelo mesmo bug (ex.: hoje
+"Art. 1º, LC 214/2025" tem 3 trechos diferentes indexados sob a mesma
+referência, sendo só o primeiro o de verdade). Isso não piora a precisão das
+respostas para artigos de número mais alto, só aumenta um pouco o ruído
+especificamente para perguntas sobre um artigo de 1 a 9 pelo número — ver
+detalhes na limitação abaixo.
+
 Limitação conhecida, ainda não corrigida: nas "disposições finais" da
 LC 214/2025 e da LC 227/2026 (a parte que altera OUTRAS leis, como o Código
 Tributário Nacional ou a lei do Simples Nacional), alguns trechos dessas
@@ -118,10 +156,12 @@ outras leis acabam indexados com a referência "LC 214/2025" ou "LC 227/2026",
 por reaproveitarem a mesma numeração de artigo. Isso pode ocasionalmente
 trazer um trecho irrelevante na busca (ex.: perguntar sobre "art. 26" ou
 "art. 33" da LC 214/2025 pode trazer, além do trecho certo, um trecho de outra
-lei sendo alterada por ela). Resolver isso direito exige distinguir com
-segurança quando um artigo altera a própria LC 214/2025 (caso em que o trecho
-deveria ficar) de quando altera uma lei totalmente diferente (caso em que
-deveria ser descartado ou marcado à parte) — ainda não implementado.
+lei sendo alterada por ela) — e, desde a correção de 05/ago acima, isso vale
+com uma chance maior para artigos de número baixo (1 a 9) especificamente.
+Resolver isso direito exige distinguir com segurança quando um artigo altera
+a própria LC 214/2025 (caso em que o trecho deveria ficar) de quando altera
+uma lei totalmente diferente (caso em que deveria ser descartado ou marcado
+à parte) — ainda não implementado.
 
 Se no futuro sair uma nova lei ou regulamentação, adicione o texto extraído
 dela em `sources/`, ajuste `LAW_FILES` em `scripts/chunk_laws.py`, rode
