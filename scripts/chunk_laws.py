@@ -38,12 +38,24 @@ LAW_FILES = {
     "ec132.txt": "EC 132/2023",
     "lc214.txt": "LC 214/2025",
     "lc227.txt": "LC 227/2026",
+    "decreto_12955.txt": "Decreto 12.955/2026",
 }
 
 MAX_CHUNK_CHARS = 2200   # tamanho-alvo antes de subdividir por inciso/alínea
 HARD_MAX_CHARS = 3200    # teto rígido — corta em partes de tamanho fixo se necessário
 
-ARTIGO_HEADER_RE = re.compile(r'^[ \t]*[\"\'“]?Art\.\s*(\d+[ºo°]?(?:-[A-Z])?)\.', re.MULTILINE)
+# IMPORTANTE (corrigido em 05/ago, ao adicionar o Decreto 12.955/2026): a
+# convenção de redação legislativa brasileira NÃO coloca ponto depois do
+# número quando o artigo é de 1 a 9 (ex.: "Art. 1º", "Art. 9º" — sem ponto),
+# só a partir do Art. 10 em diante (ex.: "Art. 10.", "Art. 11."). A versão
+# antiga deste regex exigia um ponto logo após o número em TODOS os casos —
+# isso fazia com que os Arts. 1º a 9º de TODAS as leis (EC 132/2023,
+# LC 214/2025, LC 227/2026) nunca fossem reconhecidos como início de artigo e
+# ficassem de fora do índice de busca (incluindo dispositivos centrais, como
+# o Art. 4º/5º/6º de incidência do IBS/CBS). Agora o ponto é opcional, exigindo
+# só que o que vem depois seja um espaço/quebra de linha (para não confundir
+# com outra coisa).
+ARTIGO_HEADER_RE = re.compile(r'^[ \t]*[\"\'“]?Art\.\s*(\d+[ºo°]?(?:-[A-Z])?)\.?(?=\s)', re.MULTILINE)
 ANEXO_HEADER_RE = re.compile(r'^[ \t]*[\"\'“]?ANEXO\s+([IVXLCDM]+(?:-[A-Z])?)\b', re.MULTILINE)
 # Exige que o "§ N" esteja no início de uma linha (como já era feito para
 # INCISO_RE/ALINEA_RE abaixo). Sem essa âncora, uma frase como "...a

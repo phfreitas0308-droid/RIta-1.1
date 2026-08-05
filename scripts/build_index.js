@@ -28,6 +28,7 @@ const SOURCE_TO_FILE = {
   "EC 132/2023": "index_ec132.json",
   "LC 214/2025": "index_lc214.json",
   "LC 227/2026": "index_lc227.json",
+  "Decreto 12.955/2026": "index_decreto12955.json",
   "Glossário da Reforma Tributária": "index_glossario.json",
   "DeRE - Mensagens de Erro do Sistema": "index_dere_mensagens_erro.json",
   "DeRE - Receita Integra (Documentação Técnica)": "index_dere_receita_integra.json",
