@@ -1,7 +1,12 @@
-// Recebe as respostas da pesquisa de perfil (as 8 perguntas que a RITA faz no
-// próprio chat quando o visitante atinge o limite de perguntas da conversa —
-// ver index.html, função iniciarPesquisa) e guarda no Vercel Blob, para você
-// poder consultar depois em api/survey-log.js.
+// Recebe as respostas da pesquisa de perfil (as 11 perguntas obrigatórias que
+// a RITA faz no próprio chat ANTES de liberar a conversa — ver index.html,
+// função iniciarPesquisa) e guarda no Vercel Blob, para você poder consultar
+// depois em api/survey-log.js.
+//
+// nome/cargo/empresa não são perguntados na pesquisa em si (ela é anônima por
+// padrão) — só vêm preenchidos se a pessoa já tiver feito login (opcional, na
+// barra lateral) antes de responder; nesse caso o frontend anexa esses três
+// campos automaticamente, sem perguntar de novo.
 //
 // Se o Blob Store não estiver conectado ao projeto, este endpoint não falha —
 // só não guarda nada (o chat continua funcionando normalmente, sem esse
@@ -17,13 +22,16 @@ const CAMPOS_ESPERADOS = [
   "cargo",
   "empresa",
   "nivelConhecimento",
-  "duvidas",
-  "aprofundar",
-  "desafio",
-  "projetos",
-  "regimeEspecificoGeral",
-  "creditamento",
-  "frequenciaConsulta",
+  "nivelOtimismo",
+  "elementoAprofundar",
+  "principalDesafio",
+  "elementoIncerteza",
+  "simplificaAmbienteNegocios",
+  "familiaridadeRegimes",
+  "bancoNotaFiscal",
+  "seguradoraDeducaoSinistros",
+  "subadquirentesDeRE",
+  "efeitosReprecificacao",
 ];
 
 module.exports = async function handler(req, res) {
