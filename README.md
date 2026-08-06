@@ -47,8 +47,8 @@ manual do usuário).
 - `api/log-access.js` / `api/access-log.js` — registram e mostram quem fez
   login (nome/cargo/empresa/data-hora) — veja "Registro de acessos" abaixo.
 - `api/survey.js` / `api/survey-log.js` — recebem e mostram as respostas da
-  pesquisa de 8 perguntas que a RITA faz no chat ao atingir o limite de
-  perguntas — veja "Pesquisa de perfil" abaixo.
+  pesquisa de 11 perguntas que a RITA faz no chat, obrigatoriamente, antes de
+  liberar a conversa — veja "Pesquisa de perfil" abaixo.
 - `lib/analyze.js` — antes de responder, uma chamada rápida classifica a
   pergunta: se for **ambígua** (depende de algo que só o usuário sabe, ex.:
   o regime tributário da empresa dele), o chatbot pergunta antes de responder;
@@ -378,16 +378,12 @@ conversar com a RITA sem preencher nada. Quem loga só ajuda a identificar a
 conversa e aparece no registro de acessos (veja "Registro de acessos" acima);
 não é uma trava de acesso, e nunca teve senha nem verificação de identidade.
 
-Cada conversa aceita no máximo **4 perguntas**, logado ou não; ao atingir o
-limite:
-
-- **Se a pesquisa de perfil (ver abaixo) ainda não foi respondida neste
-  navegador**, a RITA conduz as 8 perguntas dela dentro do próprio chat antes
-  de liberar a criação de uma nova conversa (o menu lateral — nova conversa,
-  trocar de conversa, excluir — fica bloqueado até a pesquisa terminar).
-- **Se a pesquisa já foi respondida antes**, aparece direto o aviso de limite
-  atingido, convidando a iniciar uma nova conversa (o histórico da conversa
-  anterior continua salvo na barra lateral).
+Cada conversa aceita no máximo **4 perguntas**, logado ou não. Ao atingir o
+limite, aparece o aviso de limite atingido, convidando a iniciar uma nova
+conversa (o histórico da conversa anterior continua salvo na barra lateral).
+A pesquisa de perfil (ver abaixo) é independente desse limite — ela acontece
+uma vez só, antes de qualquer pergunta, não a cada vez que o limite é
+atingido.
 
 - **Onde é controlado**: o limite de perguntas é verificado tanto no
   servidor (`api/chat.js`, variável `MAX_PERGUNTAS_POR_SESSAO`) quanto no
@@ -400,22 +396,31 @@ limite:
   `MAX_PERGUNTAS_POR_SESSAO` dentro do `<script>` do `index.html` para os dois
   ficarem sincronizados.
 
-## Pesquisa de perfil (8 perguntas no chat, ao atingir o limite)
+## Pesquisa de perfil (11 perguntas no chat, obrigatória antes de conversar)
 
-Ao atingir o limite de 4 perguntas pela primeira vez em um navegador, a RITA
-faz — dentro do próprio chat, uma pergunta de cada vez, na mesma caixa de
-texto — 8 perguntas sobre o nível de conhecimento e as dúvidas da pessoa
-sobre a Reforma Tributária (nível de conhecimento, principais dúvidas,
-aspecto de interesse, principal desafio, experiência prévia com projetos de
-adequação, familiaridade com Regime Específico/Regime Geral, familiaridade
-com creditamento CBS/IBS e frequência de consulta à legislação). Se a pessoa
-ainda não tiver feito login, a RITA pergunta nome/cargo/empresa antes das 8
-perguntas; se já tiver logado, pula direto para elas.
+Assim que a pessoa abre o site, **antes de poder fazer qualquer pergunta**, a
+RITA conduz — dentro do próprio chat, uma pergunta de cada vez, na mesma
+caixa de texto — 11 perguntas sobre o nível de conhecimento, otimismo e
+percepções da pessoa sobre a Reforma Tributária (nível de conhecimento, nível
+de otimismo, elemento que gostaria de se aprofundar, principal desafio,
+principal elemento de incerteza, se a RT vai simplificar o ambiente de
+negócios, familiaridade com Regime Geral/Específico, e três perguntas de
+conhecimento técnico sobre Nota Fiscal em bancos, dedução de sinistros por
+seguradoras e sujeição de sub-adquirentes à DeRE, e efeitos de
+reprecificação). Perguntas com opções fechadas (Baixo/Médio/Alto,
+Sim/Não/Depende, etc.) aparecem como botões clicáveis abaixo da pergunta,
+além de aceitar resposta digitada.
 
-É obrigatório terminar a pesquisa para poder abrir uma nova conversa — o menu
-lateral fica bloqueado enquanto ela estiver em andamento. Depois de
-respondida uma vez, fica marcada em `localStorage` (`rita_survey_v1`) e não é
-pedida de novo no mesmo navegador.
+**A pesquisa é anônima por padrão** — não pergunta nome, cargo nem empresa.
+O login (opcional, na barra lateral) é um recurso totalmente separado; se a
+pessoa já tiver feito login antes de responder a pesquisa, nome/cargo/empresa
+são anexados automaticamente às respostas enviadas ao servidor, sem perguntar
+de novo.
+
+É obrigatório terminar a pesquisa para liberar o chat — o menu lateral (nova
+conversa, trocar de conversa, excluir) e a caixa de pergunta ficam
+bloqueados até ela terminar. Depois de respondida uma vez, fica marcada em
+`localStorage` (`rita_survey_v2`) e não é pedida de novo no mesmo navegador.
 
 **Onde ficam as respostas**: gravadas no Vercel Blob (mesmo Store do registro
 de acessos) via `POST /api/survey`. Para consultar, acesse:
@@ -423,9 +428,10 @@ de acessos) via `POST /api/survey`. Para consultar, acesse:
 https://seu-site.vercel.app/api/survey-log?chave=SUA_SENHA
 ```
 (mesma senha de `ACCESS_LOG_SECRET`, usada em "Registro de acessos" acima) —
-a página tem um botão para baixar tudo como `.xlsx`.
+a página tem filtro por empresa (para quem respondeu logado) e um botão para
+baixar tudo como `.xlsx`.
 
 **Limitação conhecida:** o progresso da pesquisa não é salvo se a página for
 recarregada no meio — só a conclusão final é persistida. Se a pessoa atualizar
-a página no meio das 8 perguntas, a RITA recomeça do início na próxima vez que
-o limite for detectado.
+a página no meio das 11 perguntas, a RITA recomeça do início na próxima vez
+que a página carregar.
