@@ -1,7 +1,9 @@
 // Página só-leitura para você conferir as respostas da pesquisa de perfil que
-// a RITA faz no próprio chat quando o visitante atinge o limite de perguntas.
+// a RITA faz no próprio chat, obrigatoriamente, ANTES de liberar a conversa.
 // Usa a MESMA senha do registro de acessos (ACCESS_LOG_SECRET). Acesse:
 //   https://seu-site.vercel.app/api/survey-log?chave=SUA_SENHA
+// Nome/cargo/empresa costumam vir vazios (a pesquisa é anônima por padrão) —
+// só aparecem preenchidos quando a pessoa também fez login pela barra lateral.
 
 const { blobConfigured, getSurveyResponses } = require("../lib/blob_store");
 
@@ -11,6 +13,12 @@ function escapeHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// Serializa com segurança para dentro de uma tag <script> (evita que um valor
+// como "</script><script>" quebre a página).
+function toScriptJson(value) {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
 function renderPage(bodyHtml, extraHeadHtml = "") {
@@ -29,10 +37,13 @@ function renderPage(bodyHtml, extraHeadHtml = "") {
   th { background: #2A2620; color: #fff; position: sticky; top: 0; }
   tr:hover td { background: #F9F6F0; }
   .filters { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 18px; align-items: flex-end; }
+  .filters label { display: flex; flex-direction: column; font-size: 12px; color: #7A6F63; gap: 4px; }
+  .filters select { font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 1px solid #D9D2C4; background: #fff; min-width: 180px; }
   .filters button { font-size: 13px; padding: 7px 14px; border-radius: 6px; border: 1px solid #D9D2C4; background: #fff; cursor: pointer; }
   .filters button:hover { background: #F0EAE0; }
   .table-scroll { overflow-x: auto; }
   .col-resposta { min-width: 220px; max-width: 340px; white-space: pre-wrap; }
+  tr.oculta { display: none; }
 </style>
 ${extraHeadHtml}
 </head>
@@ -48,14 +59,17 @@ const COLUNAS = [
   { key: "nome", label: "Nome" },
   { key: "cargo", label: "Cargo" },
   { key: "empresa", label: "Empresa" },
-  { key: "nivelConhecimento", label: "Nível de conhecimento" },
-  { key: "duvidas", label: "Principais dúvidas" },
-  { key: "aprofundar", label: "Quer se aprofundar em" },
-  { key: "desafio", label: "Principal desafio" },
-  { key: "projetos", label: "Já trabalhou em projetos?" },
-  { key: "regimeEspecificoGeral", label: "Familiaridade Regime Específico/Geral" },
-  { key: "creditamento", label: "Familiaridade creditamento CBS/IBS" },
-  { key: "frequenciaConsulta", label: "Frequência de consulta à legislação" },
+  { key: "nivelConhecimento", label: "Nível de conhecimento sobre a RT" },
+  { key: "nivelOtimismo", label: "Nível de otimismo sobre a RT" },
+  { key: "elementoAprofundar", label: "Elemento que quer se aprofundar" },
+  { key: "principalDesafio", label: "Principal desafio" },
+  { key: "elementoIncerteza", label: "Principal elemento de incerteza" },
+  { key: "simplificaAmbienteNegocios", label: "RT simplifica o ambiente de negócios?" },
+  { key: "familiaridadeRegimes", label: "Familiarizado com Regime Geral/Específico?" },
+  { key: "bancoNotaFiscal", label: "Banco emitirá Nota Fiscal?" },
+  { key: "seguradoraDeducaoSinistros", label: "Seguradora deduzirá sinistros?" },
+  { key: "subadquirentesDeRE", label: "Sub-adquirentes sujeitas à DeRE?" },
+  { key: "efeitosReprecificacao", label: "Identifica efeitos de reprecificação?" },
 ];
 
 module.exports = async function handler(req, res) {
@@ -95,9 +109,17 @@ module.exports = async function handler(req, res) {
         const cls = c.key === "dataHora" || c.key === "nome" || c.key === "cargo" || c.key === "empresa" ? "" : " class=\"col-resposta\"";
         return `<td${cls}>${escapeHtml(valor)}</td>`;
       }).join("");
-      return `<tr>${cells}</tr>`;
+      return `<tr data-empresa="${escapeHtml((e.empresa || "").trim())}">${cells}</tr>`;
     })
     .join("\n");
+
+  // Lista de empresas únicas (ordenada, sem vazios) para popular o filtro.
+  const empresasUnicas = Array.from(
+    new Set(respostas.map((e) => (e.empresa || "").trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const opcoesEmpresa = empresasUnicas
+    .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`)
+    .join("");
 
   const body = `
     <h1>RITA — Pesquisa de perfil</h1>
@@ -105,6 +127,10 @@ module.exports = async function handler(req, res) {
     ${linkVoltar}
 
     <div class="filters">
+      <label>Empresa
+        <select id="filtroEmpresa"><option value="">Todas</option>${opcoesEmpresa}</select>
+      </label>
+      <button id="limparFiltro">Limpar filtro</button>
       <button id="baixarExcel">Baixar como Excel (.xlsx)</button>
     </div>
 
@@ -117,13 +143,40 @@ module.exports = async function handler(req, res) {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
+      const totalRespostas = ${toScriptJson(respostas.length)};
+      const filtroEmpresa = document.getElementById('filtroEmpresa');
+      const contagemEl = document.getElementById('contagem');
+      const linhas = Array.from(document.querySelectorAll('#corpoTabela tr[data-empresa]'));
+
+      function aplicarFiltro() {
+        const empresa = filtroEmpresa.value;
+        let visiveis = 0;
+        linhas.forEach((tr) => {
+          const bate = !empresa || tr.dataset.empresa === empresa;
+          tr.classList.toggle('oculta', !bate);
+          if (bate) visiveis++;
+        });
+        contagemEl.textContent = empresa
+          ? visiveis + ' de ' + totalRespostas + ' resposta(s) — filtro aplicado'
+          : totalRespostas + ' resposta(s) registrada(s) (mais recente primeiro).';
+      }
+
+      filtroEmpresa.addEventListener('change', aplicarFiltro);
+      document.getElementById('limparFiltro').addEventListener('click', () => {
+        filtroEmpresa.value = '';
+        aplicarFiltro();
+      });
+
+      // Baixa como .xlsx só as linhas VISÍVEIS (respeita o filtro de empresa
+      // aplicado na tela) — se nenhum filtro estiver ativo, baixa tudo.
       document.getElementById('baixarExcel').addEventListener('click', () => {
         const cabecalho = ${JSON.stringify(COLUNAS.map((c) => c.label)).replace(/</g, "\\u003c")};
-        const linhas = Array.from(document.querySelectorAll('#corpoTabela tr')).map((tr) =>
+        const linhasVisiveis = linhas.filter((tr) => !tr.classList.contains('oculta'));
+        const dados = linhasVisiveis.map((tr) =>
           Array.from(tr.querySelectorAll('td')).map((td) => td.textContent)
         );
 
-        const planilha = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
+        const planilha = XLSX.utils.aoa_to_sheet([cabecalho, ...dados]);
         planilha['!cols'] = cabecalho.map(() => ({ wch: 26 }));
         const pasta = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(pasta, planilha, 'Pesquisa de perfil');
