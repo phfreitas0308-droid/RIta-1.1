@@ -403,7 +403,7 @@ RITA conduz — dentro do próprio chat, uma pergunta de cada vez, na mesma
 caixa de texto — 11 perguntas sobre o nível de conhecimento, otimismo e
 percepções da pessoa sobre a Reforma Tributária (nível de conhecimento, nível
 de otimismo, elemento que gostaria de se aprofundar, principal desafio,
-principal elemento de incerteza, se a RT vai simplificar o ambiente de
+principal elemento de incerteza, se a Reforma Tributária vai simplificar o ambiente de
 negócios, familiaridade com Regime Geral/Específico, e três perguntas de
 conhecimento técnico sobre Nota Fiscal em bancos, dedução de sinistros por
 seguradoras e sujeição de sub-adquirentes à DeRE, e efeitos de
