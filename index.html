@@ -260,6 +260,25 @@
   }
   .quick-card:hover { border-color: var(--accent); background: #FFF6F0; }
 
+  /* Botões de resposta rápida da pesquisa de perfil obrigatória */
+  .survey-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0 14px;
+  }
+  .survey-option-btn {
+    padding: 8px 16px;
+    background: #FFFFFF;
+    border: 1px solid var(--accent);
+    color: var(--accent-dark);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .survey-option-btn:hover { background: var(--accent); color: #FFFFFF; }
+
   /* Chat transcript */
   .chat {
     padding: 24px 32px;
@@ -448,25 +467,27 @@ const SUGESTOES = [
 const STORAGE_KEY = "rita_conversations";
 const ACTIVE_KEY = "rita_active_id";
 const USER_KEY = "rita_user";
-const SURVEY_KEY = "rita_survey_v1";
+// v2: mudou de "8 perguntas + identificação, pedidas após o limite de 4
+// perguntas" para "11 perguntas, sem identificação, obrigatórias ANTES de
+// liberar o chat". Trocar a versão da chave força até quem já tinha
+// respondido a pesquisa antiga a responder essa nova.
+const SURVEY_KEY = "rita_survey_v2";
 
-// Perguntas de identificação, feitas só se o visitante ainda não tiver
-// logado (nome/cargo/empresa) — evita perguntar de novo o que o login já
-// coletou. As 8 perguntas de perfil em si vêm depois, sempre.
-const SURVEY_QUESTOES_ID = [
-  { key: "nome", label: "Nome" },
-  { key: "cargo", label: "Cargo" },
-  { key: "empresa", label: "Empresa que Trabalha" },
-];
+// As 11 perguntas obrigatórias feitas ao visitante ANTES de liberar o chat,
+// nessa ordem. "opcoes" (quando presente) faz a RITA mostrar botões de
+// resposta rápida no chat, além de aceitar resposta digitada normalmente.
 const SURVEY_QUESTOES = [
-  { key: "nivelConhecimento", label: "Qual é seu nível atual de conhecimento sobre Reforma Tributária?" },
-  { key: "duvidas", label: "Quais são suas principais dúvidas ou pontos de incerteza sobre reforma tributaria?" },
-  { key: "aprofundar", label: "Em qual aspecto da reforma você gostaria de se aprofundar mais?" },
-  { key: "desafio", label: "Qual é seu principal desafio atual com a implementação?" },
-  { key: "projetos", label: "Você já trabalhou ou está trabalhando em projetos relacionados à adequação da Reforma Tributária?" },
-  { key: "regimeEspecificoGeral", label: "Você está familiarizado com os conceitos da Reforma Específica e Regime Geral?" },
-  { key: "creditamento", label: "Qual é seu grau de familiaridade com as regras de creditamento (CBS/IBS)?" },
-  { key: "frequenciaConsulta", label: "Com que frequência você consulta a legislação da Reforma Tributária (LC 214, Decreto 12.955)?" },
+  { key: "nivelConhecimento", label: "Qual o nível atual de conhecimento sobre a RT (Reforma Tributária)?", opcoes: ["Baixo", "Médio", "Alto"] },
+  { key: "nivelOtimismo", label: "Qual o seu nível de otimismo sobre a RT?", opcoes: ["Baixo", "Médio", "Alto"] },
+  { key: "elementoAprofundar", label: "Em duas palavras, qual é o elemento da RT que você gostaria de se aprofundar mais?" },
+  { key: "principalDesafio", label: "Em duas palavras, qual é o principal desafio com a implementação?" },
+  { key: "elementoIncerteza", label: "Em duas palavras, qual é o principal elemento de incerteza?" },
+  { key: "simplificaAmbienteNegocios", label: "A RT tornará o ambiente de negócios mais simples depois de implementada?", opcoes: ["Sim", "Não"] },
+  { key: "familiaridadeRegimes", label: "Você está familiarizado com os conceitos de Regime Geral e Regime Específico?", opcoes: ["Sim", "Não"] },
+  { key: "bancoNotaFiscal", label: "Com base no seu conhecimento, Banco terá que emitir Nota Fiscal em alguns casos?", opcoes: ["Sim", "Não", "Depende"] },
+  { key: "seguradoraDeducaoSinistros", label: "Com base no seu conhecimento, Seguradora deduzirá sinistros pagos a não contribuintes de IBS e CBS?", opcoes: ["Sim", "Não", "Depende"] },
+  { key: "subadquirentesDeRE", label: "Com base no seu conhecimento, para Meios de Pagamentos, as sub-adquirentes se sujeitarão à DeRE?", opcoes: ["Sim", "Não", "Depende"] },
+  { key: "efeitosReprecificacao", label: "Você identifica efeitos na reprecificação do seu negócio com a RT?", opcoes: ["Sim", "Não"] },
 ];
 const MAX_PERGUNTAS_POR_SESSAO = 4; // limite de perguntas por conversa (também aplicado no servidor, em api/chat.js)
 
@@ -496,14 +517,15 @@ const limitNoteEl = document.getElementById('limitNote');
 const limitNewChatLink = document.getElementById('limitNewChatLink');
 const questionCounterEl = document.getElementById('questionCounter');
 
-// ---------------- PESQUISA DE PERFIL (pós-limite) ----------------
-// Ao atingir o limite de perguntas de uma conversa, a RITA conduz — dentro do
-// próprio chat — as perguntas de SURVEY_QUESTOES (e, se o visitante ainda não
-// tiver logado, também SURVEY_QUESTOES_ID antes delas). É obrigatório
-// responder para poder abrir uma nova conversa; por isso a navegação lateral
-// (nova conversa / trocar de conversa / excluir) fica bloqueada enquanto
-// pesquisaAtiva for true. A pesquisa só é pedida uma vez por navegador —
-// depois de respondida, fica marcada em SURVEY_KEY no localStorage.
+// ---------------- PESQUISA DE PERFIL (obrigatória, logo na entrada) ----------------
+// É a primeira coisa que o visitante faz: antes de liberar o chat, a RITA
+// conduz — dentro do próprio chat — as 11 perguntas de SURVEY_QUESTOES, uma
+// de cada vez (com botões de resposta rápida para as de múltipla escolha).
+// Não pede nome/cargo/empresa — o login continua existindo, mas totalmente
+// separado e opcional, na barra lateral. Enquanto a pesquisa está em
+// andamento, a navegação lateral (nova conversa / trocar / excluir) e o
+// próprio chat ficam bloqueados. É pedida só uma vez por navegador — depois
+// de respondida, fica marcada em SURVEY_KEY no localStorage.
 let pesquisaAtiva = false;
 let pesquisaFila = [];
 let pesquisaRespostas = {};
@@ -521,29 +543,52 @@ function isSurveyCompleted() {
 }
 
 function iniciarPesquisa() {
-  if (pesquisaAtiva) return;
+  if (pesquisaAtiva || isSurveyCompleted()) return;
   pesquisaAtiva = true;
   pesquisaRespostas = {};
+  pesquisaFila = SURVEY_QUESTOES.slice();
 
-  const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
-  const jaIdentificado = Boolean(user && user.nome && user.nome.trim());
-  if (jaIdentificado) {
-    pesquisaRespostas.nome = user.nome;
-    pesquisaRespostas.cargo = user.cargo || '';
-    pesquisaRespostas.empresa = user.empresa || '';
-    pesquisaFila = SURVEY_QUESTOES.slice();
-  } else {
-    pesquisaFila = SURVEY_QUESTOES_ID.concat(SURVEY_QUESTOES);
-  }
+  greetingEl.style.display = 'none';
+  chatEl.style.display = 'flex';
+  setEmptyState(false);
 
-  limitNoteEl.style.display = 'none';
-  addMessageEl('bot', 'Você atingiu o limite de perguntas desta conversa. Antes de abrir uma nova conversa, me ajude respondendo a estas perguntas rápidas sobre você e seu conhecimento da Reforma Tributária:');
-  addMessageEl('bot', pesquisaFila[0].label);
+  addMessageEl('bot', 'Antes de começar, me ajude respondendo a estas perguntas rápidas sobre você e seu conhecimento da Reforma Tributária — é rapidinho:');
+  mostrarPerguntaAtual();
   updateLimitState();
   inputEl.focus();
 }
 
-async function responderPesquisa(texto) {
+function mostrarPerguntaAtual() {
+  const pergunta = pesquisaFila[0];
+  addMessageEl('bot', pergunta.label);
+  if (pergunta.opcoes && pergunta.opcoes.length) {
+    renderOpcoesPesquisa(pergunta.opcoes);
+  }
+}
+
+// Mostra botões de resposta rápida (Sim/Não/Depende, Baixo/Médio/Alto etc.)
+// logo abaixo da pergunta — além deles, o campo de texto normal continua
+// funcionando, para quem preferir digitar a resposta.
+function renderOpcoesPesquisa(opcoes) {
+  const wrap = document.createElement('div');
+  wrap.className = 'survey-options';
+  opcoes.forEach((opt) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'survey-option-btn';
+    btn.textContent = opt;
+    btn.onclick = () => {
+      if (!pesquisaAtiva) return;
+      wrap.remove();
+      submeterRespostaPesquisa(opt);
+    };
+    wrap.appendChild(btn);
+  });
+  chatEl.appendChild(wrap);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+async function submeterRespostaPesquisa(texto) {
   const pergunta = pesquisaFila.shift();
   pesquisaRespostas[pergunta.key] = texto;
   addMessageEl('user', texto);
@@ -551,20 +596,32 @@ async function responderPesquisa(texto) {
   if (pesquisaFila.length === 0) {
     await finalizarPesquisa();
   } else {
-    addMessageEl('bot', pesquisaFila[0].label);
+    mostrarPerguntaAtual();
   }
 }
 
 async function finalizarPesquisa() {
   pesquisaAtiva = false;
   localStorage.setItem(SURVEY_KEY, JSON.stringify({ completed: true, respondidoEm: new Date().toISOString() }));
-  addMessageEl('bot', 'Obrigada pelas respostas — isso ajuda bastante a melhorar a RITA. Já pode abrir uma nova conversa quando quiser.');
+  addMessageEl('bot', 'Obrigada pelas respostas! Agora você já pode conversar comigo — digite sua pergunta sobre a Reforma Tributária abaixo.');
 
   try {
+    // Se a pessoa já tiver feito login (opcional, na barra lateral), anexa
+    // nome/cargo/empresa à resposta só para ajudar a identificar quem
+    // respondeu — sem perguntar isso de novo na pesquisa.
+    const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
+    const respostasComIdentificacao = Object.assign(
+      {
+        nome: (user && user.nome) || '',
+        cargo: (user && user.cargo) || '',
+        empresa: (user && user.empresa) || '',
+      },
+      pesquisaRespostas
+    );
     await fetch('/api/survey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ respostas: pesquisaRespostas })
+      body: JSON.stringify({ respostas: respostasComIdentificacao })
     });
   } catch (err) {
     // não bloqueia a experiência do visitante se o registro no servidor falhar
@@ -641,11 +698,14 @@ function updateLimitState() {
   const count = countPerguntas(conv);
   const atingiuLimite = count >= MAX_PERGUNTAS_POR_SESSAO;
 
-  // Se o limite foi atingido e a pesquisa de perfil ainda não foi respondida
-  // neste navegador, a RITA assume a condução da conversa (iniciarPesquisa) —
-  // isso reaproveita a mesma caixa de texto, então ela não pode ficar
-  // desabilitada nesse caso.
-  if (atingiuLimite && !isSurveyCompleted() && !pesquisaAtiva) {
+  // A pesquisa de perfil é obrigatória ANTES de liberar o chat (não depende
+  // mais do limite de perguntas) — enquanto não for respondida neste
+  // navegador, a RITA assume a condução da conversa (iniciarPesquisa), então
+  // o campo de texto não pode ficar desabilitado nesse caso. Esse check aqui
+  // (além da chamada no carregamento inicial da página) é uma rede de
+  // segurança: garante que a pesquisa é imposta mesmo que updateLimitState()
+  // seja chamada antes de rodar a checagem inicial.
+  if (!isSurveyCompleted() && !pesquisaAtiva) {
     iniciarPesquisa();
     return; // iniciarPesquisa() já chama updateLimitState() de novo no final
   }
@@ -897,7 +957,7 @@ async function sendMessage() {
   if (pesquisaAtiva) {
     inputEl.value = '';
     sendBtn.disabled = true;
-    await responderPesquisa(question);
+    await submeterRespostaPesquisa(question);
     updateLimitState(); // reabilita input/sendBtn para a próxima pergunta, ou trava tudo se a pesquisa acabou
     if (!inputEl.disabled) inputEl.focus();
     return;
