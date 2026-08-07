@@ -66,9 +66,6 @@ const COLUNAS = [
   { key: "elementoIncerteza", label: "Principal elemento de incerteza" },
   { key: "simplificaAmbienteNegocios", label: "Reforma Tributária simplifica o ambiente de negócios?" },
   { key: "familiaridadeRegimes", label: "Familiarizado com Regime Geral/Específico?" },
-  { key: "bancoNotaFiscal", label: "Banco emitirá Nota Fiscal?" },
-  { key: "seguradoraDeducaoSinistros", label: "Seguradora deduzirá sinistros?" },
-  { key: "subadquirentesDeRE", label: "Sub-adquirentes sujeitas à DeRE?" },
   { key: "efeitosReprecificacao", label: "Identifica efeitos de reprecificação?" },
 ];
 
