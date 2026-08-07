@@ -1,4 +1,4 @@
-// Recebe as respostas da pesquisa de perfil (as 11 perguntas obrigatórias que
+// Recebe as respostas da pesquisa de perfil (as 8 perguntas obrigatórias que
 // a RITA faz no próprio chat ANTES de liberar a conversa — ver index.html,
 // função iniciarPesquisa) e guarda no Vercel Blob, para você poder consultar
 // depois em api/survey-log.js.
@@ -28,9 +28,6 @@ const CAMPOS_ESPERADOS = [
   "elementoIncerteza",
   "simplificaAmbienteNegocios",
   "familiaridadeRegimes",
-  "bancoNotaFiscal",
-  "seguradoraDeducaoSinistros",
-  "subadquirentesDeRE",
   "efeitosReprecificacao",
 ];
 
