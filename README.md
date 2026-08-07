@@ -47,7 +47,7 @@ manual do usuário).
 - `api/log-access.js` / `api/access-log.js` — registram e mostram quem fez
   login (nome/cargo/empresa/data-hora) — veja "Registro de acessos" abaixo.
 - `api/survey.js` / `api/survey-log.js` — recebem e mostram as respostas da
-  pesquisa de 11 perguntas que a RITA faz no chat, obrigatoriamente, antes de
+  pesquisa de 8 perguntas que a RITA faz no chat, obrigatoriamente, antes de
   liberar a conversa — veja "Pesquisa de perfil" abaixo.
 - `lib/analyze.js` — antes de responder, uma chamada rápida classifica a
   pergunta: se for **ambígua** (depende de algo que só o usuário sabe, ex.:
@@ -396,20 +396,22 @@ atingido.
   `MAX_PERGUNTAS_POR_SESSAO` dentro do `<script>` do `index.html` para os dois
   ficarem sincronizados.
 
-## Pesquisa de perfil (11 perguntas no chat, obrigatória antes de conversar)
+## Pesquisa de perfil (8 perguntas no chat, obrigatória antes de conversar)
 
 Assim que a pessoa abre o site, **antes de poder fazer qualquer pergunta**, a
 RITA conduz — dentro do próprio chat, uma pergunta de cada vez, na mesma
-caixa de texto — 11 perguntas sobre o nível de conhecimento, otimismo e
+caixa de texto — 8 perguntas sobre o nível de conhecimento, otimismo e
 percepções da pessoa sobre a Reforma Tributária (nível de conhecimento, nível
 de otimismo, elemento que gostaria de se aprofundar, principal desafio,
-principal elemento de incerteza, se a Reforma Tributária vai simplificar o ambiente de
-negócios, familiaridade com Regime Geral/Específico, e três perguntas de
-conhecimento técnico sobre Nota Fiscal em bancos, dedução de sinistros por
-seguradoras e sujeição de sub-adquirentes à DeRE, e efeitos de
+principal elemento de incerteza, se a Reforma Tributária vai simplificar o
+ambiente de negócios, familiaridade com Regime Geral/Específico, e efeitos de
 reprecificação). Perguntas com opções fechadas (Baixo/Médio/Alto,
-Sim/Não/Depende, etc.) aparecem como botões clicáveis abaixo da pergunta,
-além de aceitar resposta digitada.
+Sim/Não, etc.) aparecem como botões clicáveis abaixo da pergunta, além de
+aceitar resposta digitada.
+
+(As 3 perguntas técnicas sobre Nota Fiscal em bancos, dedução de sinistros por
+seguradoras e sujeição de sub-adquirentes/meios de pagamento à DeRE foram
+removidas do questionário.)
 
 **A pesquisa é anônima por padrão** — não pergunta nome, cargo nem empresa.
 O login (opcional, na barra lateral) é um recurso totalmente separado; se a
@@ -420,7 +422,7 @@ de novo.
 É obrigatório terminar a pesquisa para liberar o chat — o menu lateral (nova
 conversa, trocar de conversa, excluir) e a caixa de pergunta ficam
 bloqueados até ela terminar. Depois de respondida uma vez, fica marcada em
-`localStorage` (`rita_survey_v2`) e não é pedida de novo no mesmo navegador.
+`localStorage` (`rita_survey_v3`) e não é pedida de novo no mesmo navegador.
 
 **Onde ficam as respostas**: gravadas no Vercel Blob (mesmo Store do registro
 de acessos) via `POST /api/survey`. Para consultar, acesse:
@@ -433,5 +435,5 @@ baixar tudo como `.xlsx`.
 
 **Limitação conhecida:** o progresso da pesquisa não é salvo se a página for
 recarregada no meio — só a conclusão final é persistida. Se a pessoa atualizar
-a página no meio das 11 perguntas, a RITA recomeça do início na próxima vez
+a página no meio das 8 perguntas, a RITA recomeça do início na próxima vez
 que a página carregar.
