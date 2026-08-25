@@ -75,25 +75,34 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  const { question, history, usuario } = req.body || {};
+  const { question, history, usuario, totalPerguntasAntes } = req.body || {};
   if (!question || typeof question !== "string") {
     return res.status(400).json({ error: "Campo 'question' é obrigatório." });
   }
 
-  // ---------- Limite de perguntas por sessão ----------
+  // ---------- Limite de perguntas (GLOBAL no navegador, não por conversa) ----------
   // O login (nome/cargo/empresa) é opcional — não é mais exigido para
   // conversar com a RITA; "usuario" (se vier preenchido) só é usado para
   // identificar o acesso no registro de acessos (ver api/log-access.js).
-  // Cada conversa aceita no máximo MAX_PERGUNTAS_POR_SESSAO perguntas —
-  // protege contra custo descontrolado de API. Verificado no servidor (não só
-  // no frontend) para não depender só do JavaScript do navegador.
+  // O navegador tem no máximo MAX_PERGUNTAS_POR_SESSAO perguntas no TOTAL —
+  // uma vez atingido, nem abrindo uma conversa nova dá pra perguntar mais.
+  // "totalPerguntasAntes" vem do contador global do frontend
+  // (rita_perguntas_totais_global, em localStorage); "perguntasAnteriores" é
+  // um fallback baseado só no histórico desta conversa, para não quebrar se o
+  // frontend não mandar o campo novo. Verificado no servidor (não só no
+  // JavaScript do navegador) para não depender só do lado do cliente —
+  // embora, como não há login/conta, alguém que limpe o localStorage ainda
+  // consiga resetar o contador; é a mesma limitação que já existia.
   const MAX_PERGUNTAS_POR_SESSAO = Number(process.env.MAX_PERGUNTAS_POR_SESSAO || 4);
   const perguntasAnteriores = Array.isArray(history)
     ? history.filter((h) => h && h.role === "user").length
     : 0;
-  if (perguntasAnteriores >= MAX_PERGUNTAS_POR_SESSAO) {
+  const totalConsiderado = Number.isFinite(totalPerguntasAntes)
+    ? Math.max(totalPerguntasAntes, perguntasAnteriores)
+    : perguntasAnteriores;
+  if (totalConsiderado >= MAX_PERGUNTAS_POR_SESSAO) {
     return res.status(403).json({
-      error: `Você atingiu o limite de ${MAX_PERGUNTAS_POR_SESSAO} perguntas nesta conversa. Inicie uma nova conversa para continuar.`,
+      error: `Você atingiu o limite de ${MAX_PERGUNTAS_POR_SESSAO} perguntas gratuitas. Não é possível fazer novas perguntas neste navegador.`,
       meta: { tipo: "limite_atingido" },
     });
   }
