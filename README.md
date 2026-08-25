@@ -371,25 +371,29 @@ disse que é quem, e quando.
 - Histórico de conversas salvo no navegador (localStorage) — some se a pessoa
   limpar os dados do navegador ou trocar de dispositivo.
 
-## Login opcional e limite de perguntas por sessão
+## Login opcional e limite de perguntas (global, por navegador)
 
 O login (nome, cargo e empresa, na barra lateral) é **opcional** — dá pra
 conversar com a RITA sem preencher nada. Quem loga só ajuda a identificar a
 conversa e aparece no registro de acessos (veja "Registro de acessos" acima);
 não é uma trava de acesso, e nunca teve senha nem verificação de identidade.
 
-Cada conversa aceita no máximo **4 perguntas**, logado ou não. Ao atingir o
-limite, aparece o aviso de limite atingido, convidando a iniciar uma nova
-conversa (o histórico da conversa anterior continua salvo na barra lateral).
-A pesquisa de perfil (ver abaixo) é independente desse limite — ela acontece
-uma vez só, antes de qualquer pergunta, não a cada vez que o limite é
-atingido.
+Cada navegador tem no máximo **4 perguntas no TOTAL**, logado ou não — e esse
+número **não reseta** ao criar uma nova conversa. Antes o limite era "4
+perguntas por conversa" (dava pra criar uma conversa nova e ganhar mais 4);
+agora é um limite único e permanente por navegador: ao atingir a 4ª pergunta,
+o campo de texto e o botão "Criar uma nova conversa" ficam desabilitados em
+definitivo — a pessoa só consegue continuar lendo o histórico das conversas
+já existentes, sem fazer perguntas novas. A pesquisa de perfil (ver abaixo) é
+independente desse limite — ela acontece uma vez só, antes de qualquer
+pergunta.
 
-- **Onde é controlado**: o limite de perguntas é verificado tanto no
-  servidor (`api/chat.js`, variável `MAX_PERGUNTAS_POR_SESSAO`) quanto no
-  frontend (`index.html`, mesma constante, no `<script>`) — a barreira que
-  realmente vale é a do servidor, mesmo que alguém chame a API diretamente
-  sem passar pelo site.
+- **Onde é controlado**: o contador fica em `localStorage`
+  (`rita_perguntas_totais_global`, em `index.html`) e é enviado a cada
+  pergunta para o servidor (`api/chat.js`, variável `MAX_PERGUNTAS_POR_SESSAO`)
+  como uma segunda checagem — a mesma limitação de sempre se aplica: como não
+  há login/conta obrigatório, alguém que limpe os dados do navegador reseta o
+  contador. É o mesmo nível de proteção que a pesquisa de perfil já tinha.
 - **Para mudar o número de perguntas**: se só ajustar a variável de ambiente
   na Vercel, o servidor passa a aceitar o novo limite, mas o frontend continua
   mostrando o aviso com "4" — edite também a constante
