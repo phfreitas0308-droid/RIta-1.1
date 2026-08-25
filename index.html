@@ -446,7 +446,7 @@
 
   <div class="question-counter" id="questionCounter"></div>
   <div class="limit-note" id="limitNote">
-    <span>Você atingiu o limite de 4 perguntas nesta conversa. <a id="limitNewChatLink">Criar uma nova conversa</a> para continuar.</span>
+    <span>Você atingiu o limite de 4 perguntas gratuitas. Não é possível fazer novas perguntas neste navegador.</span>
   </div>
   <div class="inputbar">
     <div class="inputbar-inner">
@@ -486,7 +486,24 @@ const SURVEY_QUESTOES = [
   { key: "familiaridadeRegimes", label: "Você está familiarizado com os conceitos de Regime Geral e Regime Específico?", opcoes: ["Sim", "Não"] },
   { key: "efeitosReprecificacao", label: "Você identifica efeitos na reprecificação do seu negócio com a Reforma Tributária?", opcoes: ["Sim", "Não"] },
 ];
-const MAX_PERGUNTAS_POR_SESSAO = 4; // limite de perguntas por conversa (também aplicado no servidor, em api/chat.js)
+const MAX_PERGUNTAS_POR_SESSAO = 4; // limite de perguntas TOTAL neste navegador (não por conversa) — também aplicado no servidor, em api/chat.js
+
+// Contador global e permanente de perguntas feitas neste navegador — ao
+// contrário do histórico de cada conversa, esse número NUNCA reseta (nem
+// criando uma conversa nova, nem apagando conversas antigas). Uma vez
+// atingido MAX_PERGUNTAS_POR_SESSAO, a pessoa não consegue mais perguntar
+// nada, em nenhuma conversa, a não ser que limpe os dados do navegador.
+const TOTAL_PERGUNTAS_KEY = "rita_perguntas_totais_global";
+
+function getTotalPerguntasGlobal() {
+  return Number(localStorage.getItem(TOTAL_PERGUNTAS_KEY) || 0);
+}
+
+function incrementarTotalPerguntasGlobal() {
+  const novo = getTotalPerguntasGlobal() + 1;
+  localStorage.setItem(TOTAL_PERGUNTAS_KEY, String(novo));
+  return novo;
+}
 
 let conversations = loadConversations();
 let activeId = localStorage.getItem(ACTIVE_KEY);
@@ -511,7 +528,6 @@ const sendBtn = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
 const loginAreaEl = document.getElementById('loginArea');
 const limitNoteEl = document.getElementById('limitNote');
-const limitNewChatLink = document.getElementById('limitNewChatLink');
 const questionCounterEl = document.getElementById('questionCounter');
 
 // ---------------- PESQUISA DE PERFIL (obrigatória, logo na entrada) ----------------
@@ -647,11 +663,6 @@ newChatBtn.addEventListener('click', () => {
   inputEl.focus();
 });
 
-limitNewChatLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  newChatBtn.click();
-});
-
 function createConversationObject() {
   return { id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), title: 'Nova conversa', messages: [] };
 }
@@ -676,25 +687,17 @@ function setEmptyState(isEmpty) {
   contentEl.classList.toggle('is-empty', isEmpty);
 }
 
-function countPerguntas(conv) {
-  return conv ? conv.messages.filter(m => m.role === 'user').length : 0;
-}
-
 // O login (nome/cargo/empresa) é opcional — dá pra conversar com a RITA sem
 // logar. Quem loga só ajuda a identificar a conversa e aparece no registro de
 // acessos (ver /api/access-log); não é uma trava de acesso. O limite de
-// MAX_PERGUNTAS_POR_SESSAO perguntas por conversa vale para todo mundo, logado
-// ou não.
+// MAX_PERGUNTAS_POR_SESSAO perguntas é GLOBAL neste navegador (não reseta
+// criando conversa nova) e vale para todo mundo, logado ou não.
 function isLoggedIn() {
   const user = JSON.parse(localStorage.getItem(USER_KEY) || 'null');
   return Boolean(user && user.nome && user.nome.trim());
 }
 
 function updateLimitState() {
-  const conv = getActive();
-  const count = countPerguntas(conv);
-  const atingiuLimite = count >= MAX_PERGUNTAS_POR_SESSAO;
-
   // A pesquisa de perfil é obrigatória ANTES de liberar o chat (não depende
   // mais do limite de perguntas) — enquanto não for respondida neste
   // navegador, a RITA assume a condução da conversa (iniciarPesquisa), então
@@ -707,30 +710,40 @@ function updateLimitState() {
     return; // iniciarPesquisa() já chama updateLimitState() de novo no final
   }
 
+  const totalGlobal = getTotalPerguntasGlobal();
+  const atingiuLimite = totalGlobal >= MAX_PERGUNTAS_POR_SESSAO;
+
   const bloqueado = atingiuLimite && !pesquisaAtiva;
   inputEl.disabled = bloqueado;
   sendBtn.disabled = bloqueado;
   inputEl.placeholder = pesquisaAtiva
     ? 'Digite sua resposta...'
     : (atingiuLimite
-      ? 'Limite de perguntas atingido nesta conversa.'
+      ? 'Limite de perguntas atingido.'
       : 'Digite sua pergunta sobre a reforma tributária...');
 
   limitNoteEl.style.display = bloqueado ? 'flex' : 'none';
   renderSidebarLockState();
 
-  questionCounterEl.textContent = count > 0
-    ? `Pergunta ${Math.min(count, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} nesta conversa`
+  questionCounterEl.textContent = totalGlobal > 0
+    ? `Pergunta ${Math.min(totalGlobal, MAX_PERGUNTAS_POR_SESSAO)} de ${MAX_PERGUNTAS_POR_SESSAO} no total`
     : '';
 }
 
 // Enquanto a pesquisa de perfil está em andamento (pesquisaAtiva), bloqueia
 // criar/trocar/excluir conversa pela barra lateral — a pesquisa é obrigatória
 // antes de abrir uma nova conversa, então deixar esses atalhos abertos
-// permitiria contornar isso.
+// permitiria contornar isso. Além disso, uma vez atingido o limite global de
+// perguntas (MAX_PERGUNTAS_POR_SESSAO), "nova conversa" também fica
+// desabilitado para sempre — criar uma conversa nova não deve ser um jeito de
+// burlar o limite. Trocar/excluir conversas antigas continua liberado (só
+// leitura do histórico, não gasta pergunta nova).
 function renderSidebarLockState() {
-  newChatBtn.disabled = pesquisaAtiva;
-  newChatBtn.title = pesquisaAtiva ? 'Responda a pesquisa no chat antes de abrir uma nova conversa.' : '';
+  const limiteAtingido = getTotalPerguntasGlobal() >= MAX_PERGUNTAS_POR_SESSAO;
+  newChatBtn.disabled = pesquisaAtiva || limiteAtingido;
+  newChatBtn.title = pesquisaAtiva
+    ? 'Responda a pesquisa no chat antes de abrir uma nova conversa.'
+    : (limiteAtingido ? 'Você atingiu o limite de perguntas gratuitas — não é possível abrir uma nova conversa.' : '');
   convListEl.classList.toggle('locked', pesquisaAtiva);
 }
 
@@ -960,8 +973,7 @@ async function sendMessage() {
     return;
   }
 
-  const convCheck = getActive();
-  if (countPerguntas(convCheck) >= MAX_PERGUNTAS_POR_SESSAO) {
+  if (getTotalPerguntasGlobal() >= MAX_PERGUNTAS_POR_SESSAO) {
     updateLimitState();
     return;
   }
@@ -979,6 +991,7 @@ async function sendMessage() {
     conv.title = question.length > 42 ? question.slice(0, 42) + '…' : question;
   }
   persist();
+  incrementarTotalPerguntasGlobal();
   renderSidebar();
   addMessageEl('user', question);
   updateLimitState();
@@ -990,7 +1003,12 @@ async function sendMessage() {
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, history: conv.messages.slice(0, -1), usuario })
+      body: JSON.stringify({
+        question,
+        history: conv.messages.slice(0, -1),
+        usuario,
+        totalPerguntasAntes: getTotalPerguntasGlobal() - 1, // valor ANTES do incremento desta pergunta
+      })
     });
     const data = await resp.json();
     loadingEl.remove();
