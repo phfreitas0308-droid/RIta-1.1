@@ -437,6 +437,24 @@ https://seu-site.vercel.app/api/survey-log?chave=SUA_SENHA
 a página tem filtro por empresa (para quem respondeu logado) e um botão para
 baixar tudo como `.xlsx`.
 
+**Gerador de dashboard (dentro da própria página `/api/survey-log`):** cada
+linha da tabela tem uma caixinha de seleção (todas vêm marcadas por padrão, e
+o filtro de empresa é só um facilitador de busca — não interfere na seleção).
+Depois de marcar as respostas desejadas, o botão **"Gerar dashboard"** monta,
+na hora e sem sair da página, o mesmo estilo de dashboard usado nos relatórios
+em PDF: KPIs, gráfico de nível de conhecimento vs. otimismo, gráfico de
+percepções técnicas (Sim/Não/Depende — só aparece se alguma resposta
+selecionada tiver esses campos preenchidos), gráfico de pizza dos temas que
+mais querem se aprofundar, e nuvens de palavras de "Desafios" e "Incertezas"
+(cada nuvem trata a resposta inteira da célula como uma frase única — só
+conta como repetida se o texto for exatamente igual, sem separar em palavras
+soltas). Tudo com as cores oficiais da PwC e a marca "RiT@". Um botão
+**"Baixar dashboard como PDF"** gera o PDF (usa bibliotecas carregadas via
+internet — Chart.js, WordCloud2, html2canvas e jsPDF; se a internet cair no
+meio, a página avisa com uma mensagem clara em vez de travar). O restante da
+página — filtro, tabela, exportar Excel — continua funcionando normalmente
+mesmo se o gerador de dashboard não conseguir carregar essas bibliotecas.
+
 **Limitação conhecida:** o progresso da pesquisa não é salvo se a página for
 recarregada no meio — só a conclusão final é persistida. Se a pessoa atualizar
 a página no meio das 8 perguntas, a RITA recomeça do início na próxima vez
